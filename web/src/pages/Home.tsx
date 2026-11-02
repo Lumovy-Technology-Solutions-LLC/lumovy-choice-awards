@@ -32,6 +32,8 @@ export function HowItWorks({ places = 3, onClose }: { places?: number; onClose: 
 
 function PastResultsModal({ id, name, onClose }: { id: number; name: string; onClose: () => void }) {
   const q = useQuery({ queryKey: ['results', id], queryFn: () => api.get<Results>(`/api/portal/contests/${id}/results`), retry: false });
+  // Your own vote is available even before HR publishes the results.
+  const mine = useQuery({ queryKey: ['ballot', String(id)], enabled: q.isError, queryFn: () => api.get<{ status: string; picks: { rank: number; entry: { label: string; title: string; thumbUrl: string | null } }[] }>(`/api/portal/contests/${id}/ballot`), retry: false });
   return (
     <Modal title={name} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Close</button>{q.data && <Link className="btn btn-primary" to={`/contests/${id}/results`}>See full results</Link>}</>}>
       {q.isLoading && <PageLoader />}
@@ -60,6 +62,15 @@ function PastResultsModal({ id, name, onClose }: { id: number; name: string; onC
           </div>
         </div>
       )}
+      {q.isError && mine.data?.status === 'submitted' && (
+        <div style={{ marginTop: 18 }}>
+          <div className="eyebrow" style={{ marginBottom: 8 }}>Your vote</div>
+          <div className="row" style={{ gap: 8 }}>
+            {[...mine.data.picks].sort((a, b) => a.rank - b.rank).map((p) => <span key={p.rank} className="badge" style={{ padding: '6px 12px' }}><Medal rank={p.rank} /> {p.entry.label} · {p.entry.title}</span>)}
+          </div>
+        </div>
+      )}
+      {q.isError && mine.data?.status === 'draft' && <p className="hint" style={{ marginTop: 14 }}>You did not submit a vote in this contest.</p>}
     </Modal>
   );
 }
