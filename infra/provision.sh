@@ -2,7 +2,7 @@
 # One-time Azure set-up for Lumovy Choice Awards.
 # Run in Azure Cloud Shell (bash) or a terminal with `az login` done. Review the variables first.
 # Creates: resource group, PostgreSQL Flexible Server + database, App Service plan + Linux web app (Node 22),
-# app settings, persistent upload folder, health check, HTTPS only, and a GitHub OIDC identity for deployments.
+# app settings, persistent upload folder, health check and HTTPS only. Deploy afterwards with infra/deploy.sh (manual zip).
 set -euo pipefail
 
 # ---------- edit these ----------
@@ -17,7 +17,6 @@ PG_ADMIN="choiceadmin"
 PG_PASS="$(openssl rand -base64 24 | tr -d '=+/')"   # generated; stored in App Settings below
 APP_SECRET="$(openssl rand -hex 48)"
 CUSTOM_URL="https://choice.lumovy.com"   # public address you will map (or use https://$APP.azurewebsites.net first)
-GH_REPO="Lumovy-Technology-Solutions-LLC/lumovy-choice-awards"
 ADMIN_EMAIL="<first HR admin email>"
 ADMIN_NAME="HR Admin"
 ADMIN_TEMP_PASSWORD="$(openssl rand -base64 18 | tr -d '=+/')A1!"
@@ -48,7 +47,7 @@ az webapp config set -g "$RG" -n "$APP" \
 az webapp config appsettings set -g "$RG" -n "$APP" -o none --settings \
   NODE_ENV=production \
   WEBSITES_ENABLE_APP_SERVICE_STORAGE=true \
-  SCM_DO_BUILD_DURING_DEPLOYMENT=false \
+  SCM_DO_BUILD_DURING_DEPLOYMENT=true \
   APP_URL="$CUSTOM_URL" \
   APP_SECRET="$APP_SECRET" \
   DATABASE_URL="$DB_URL" \
@@ -58,26 +57,12 @@ az webapp config appsettings set -g "$RG" -n "$APP" -o none --settings \
   SMTP_HOST="$SMTP_HOST" SMTP_PORT="$SMTP_PORT" SMTP_USER="$SMTP_USER" SMTP_PASS="$SMTP_PASS" \
   BOOTSTRAP_ADMIN_EMAIL="$ADMIN_EMAIL" BOOTSTRAP_ADMIN_NAME="$ADMIN_NAME" BOOTSTRAP_ADMIN_PASSWORD="$ADMIN_TEMP_PASSWORD"
 
-echo "Creating GitHub deployment identity (OIDC, no stored passwords)..."
-APP_ID=$(az ad app create --display-name "gh-$APP" --query appId -o tsv)
-az ad sp create --id "$APP_ID" -o none
-SCOPE=$(az group show -n "$RG" --query id -o tsv)
-az role assignment create --assignee "$APP_ID" --role "Website Contributor" --scope "$SCOPE" -o none
-az ad app federated-credential create --id "$APP_ID" --parameters "{
-  \"name\": \"github-main\", \"issuer\": \"https://token.actions.githubusercontent.com\",
-  \"subject\": \"repo:${GH_REPO}:environment:production\", \"audiences\": [\"api://AzureADTokenExchange\"] }" -o none
-
-TENANT=$(az account show --query tenantId -o tsv)
 cat <<EOF
 
 =========== DONE ===========
-Add these in GitHub  (repo > Settings > Secrets and variables > Actions):
-  Secrets:    AZURE_CLIENT_ID=$APP_ID
-              AZURE_TENANT_ID=$TENANT
-              AZURE_SUBSCRIPTION_ID=$SUB
-  Variables:  AZURE_WEBAPP_NAME=$APP
-              AZURE_WEBAPP_HOSTNAME=$APP.azurewebsites.net
-Create the GitHub environment named "production" (repo > Settings > Environments).
+Next: deploy the code (see docs/DEPLOYMENT.md):
+  1. On Windows:  git archive --format zip --output deploy.zip HEAD
+  2. Upload deploy.zip to Cloud Shell, then:  RG=$RG APP=$APP bash infra/deploy.sh ~/deploy.zip
 
 First sign-in:  $CUSTOM_URL   user: $ADMIN_EMAIL   temporary password: $ADMIN_TEMP_PASSWORD
 (change it immediately, then delete BOOTSTRAP_ADMIN_PASSWORD from App Settings)

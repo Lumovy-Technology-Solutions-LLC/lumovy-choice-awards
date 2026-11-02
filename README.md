@@ -10,7 +10,7 @@ One reusable voting portal for every Lumovy HR contest. HR sets up a contest (ph
 | --- | --- |
 | [Product overview](docs/PRODUCT.md) | What it is, who uses it, what it does, lifecycle, fairness and scoring rules |
 | [Architecture and tech stack](docs/ARCHITECTURE.md) | Stack, repository layout, data model, how voting works, deployment, configuration, testing |
-| [Deployment on Azure](docs/DEPLOYMENT.md) | App Service + PostgreSQL + GitHub Actions, step by step, operations, rollback, cost |
+| [Deployment on Azure](docs/DEPLOYMENT.md) | App Service + PostgreSQL, manual zip deploy, step by step, operations, rollback, cost |
 | [Security](docs/SECURITY.md) | Authentication, authorization, vote privacy, file handling, hardening, production checklist |
 | [User guide](docs/USER-GUIDE.md) | Full guide for employees and HR admins, plus troubleshooting |
 
@@ -35,7 +35,7 @@ Open http://localhost:5173.
 
 In test mode (`MAIL_TRANSPORT=dev`) no real email is sent: the login screen shows the 6-digit code and every email is viewable in **Admin > Email outbox**. Copy `server/.env.example` to `server/.env` first.
 
-Production: deployed to Azure App Service by GitHub Actions. See [Deployment on Azure](docs/DEPLOYMENT.md).
+Production: deployed to Azure App Service with a manual zip deploy. See [Deployment on Azure](docs/DEPLOYMENT.md).
 
 Tests: `npm test`.
 
