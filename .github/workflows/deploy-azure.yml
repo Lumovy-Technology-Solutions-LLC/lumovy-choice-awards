@@ -1,0 +1,68 @@
+name: Deploy to Azure App Service
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # Azure login with OIDC (no stored passwords)
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install
+        run: |
+          npm --prefix server ci
+          npm --prefix web ci
+      - name: Type-check and build web
+        run: npm --prefix web run build
+      - name: Test (rules, uploads)
+        run: npm --prefix server test
+      - name: Assemble package
+        run: |
+          rm -rf server/node_modules && npm --prefix server ci --omit=dev
+          mkdir -p package/web
+          cp -r server package/server
+          cp -r web/dist package/web/dist
+          rm -rf package/server/data package/server/test package/server/.env
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app
+          path: package
+          include-hidden-files: true
+
+  deploy:
+    needs: build-test
+    runs-on: ubuntu-latest
+    environment: production        # add required reviewers in GitHub if you want an approval gate
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: app
+          path: package
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_WEBAPP_NAME }}
+          package: package
+      - name: Smoke test
+        run: |
+          for i in 1 2 3 4 5 6; do
+            curl -fsS "https://${{ vars.AZURE_WEBAPP_HOSTNAME }}/api/health" && exit 0
+            sleep 15
+          done
+          echo "Health check failed" && exit 1

@@ -17,7 +17,7 @@ export const config = {
   secret: process.env.APP_SECRET || 'dev-only-secret-not-for-production',
   databaseUrl: process.env.DATABASE_URL || '',
   uploadDir: path.resolve(root, process.env.UPLOAD_DIR || './data/uploads'),
-  dataDir: path.resolve(root, './data'),
+  dataDir: path.resolve(root, process.env.DATA_DIR || './data'),
   mail: {
     transport: process.env.MAIL_TRANSPORT || 'dev',
     from: process.env.MAIL_FROM || 'Lumovy Choice Awards <choice-awards@lumovy.com>',

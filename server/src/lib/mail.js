@@ -166,12 +166,17 @@ function getTransporter() {
   return transporter;
 }
 
+const WORKER_ID = `${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
+
 export async function processOutbox(limit = 25) {
-  const batch = await db('outbox').where({ status: 'queued' }).orderBy('id').limit(limit);
+  // Safe with several app instances: rows are claimed atomically, and only the claimed rows are sent.
+  const now = nowIso();
+  await db('outbox').where({ status: 'sending' }).where('claimed_at', '<', new Date(Date.now() - 5 * 60_000).toISOString()).update({ status: 'queued', claimed_by: null }); // crashed worker
+  const ids = (await db('outbox').where({ status: 'queued' }).orderBy('id').limit(limit).select('id')).map((r) => r.id);
+  if (!ids.length) return 0;
+  await db('outbox').whereIn('id', ids).where({ status: 'queued' }).update({ status: 'sending', claimed_by: WORKER_ID, claimed_at: now });
+  const batch = await db('outbox').whereIn('id', ids).where({ status: 'sending', claimed_by: WORKER_ID });
   if (!batch.length) return 0;
-  const ids = batch.map((b) => b.id);
-  const claimed = await db('outbox').whereIn('id', ids).where({ status: 'queued' }).update({ status: 'sending' });
-  if (!claimed) return 0;
   await Promise.all(batch.map(async (m) => {
     try {
       if (config.mail.transport === 'smtp') {
