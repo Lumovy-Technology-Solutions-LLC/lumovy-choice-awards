@@ -11,7 +11,7 @@ RG="rg-choice-awards-prod"
 LOC="centralindia"                       # closest to India employees
 APP="lumovy-choice-awards"               # becomes <APP>.azurewebsites.net (must be globally unique)
 PLAN="plan-choice-awards"
-SKU="P1v3"                               # B2 is fine for testing; P1v3 recommended for production
+SKU="B1"                                 # enough for ~250 employees; scale up to B2/P1v3 later if needed (az appservice plan update --sku B2)
 PG="pg-choice-awards"                    # PostgreSQL server name (globally unique)
 PG_ADMIN="choiceadmin"
 PG_PASS="$(openssl rand -base64 24 | tr -d '=+/')"   # generated; stored in App Settings below
@@ -30,7 +30,7 @@ az group create -n "$RG" -l "$LOC" -o none
 echo "Creating PostgreSQL (takes a few minutes)..."
 az postgres flexible-server create -g "$RG" -n "$PG" -l "$LOC" \
   --admin-user "$PG_ADMIN" --admin-password "$PG_PASS" \
-  --tier Burstable --sku-name Standard_B2s --storage-size 32 --version 16 \
+  --tier Burstable --sku-name Standard_B1ms --storage-size 32 --version 16 \
   --public-access 0.0.0.0 -o none          # 0.0.0.0 = allow Azure services only
 az postgres flexible-server db create -g "$RG" -s "$PG" -d choice -o none
 DB_URL="postgres://${PG_ADMIN}:${PG_PASS}@${PG}.postgres.database.azure.com:5432/choice?sslmode=require"

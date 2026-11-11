@@ -11,9 +11,9 @@ You (Windows) ─ git archive ─> Cloud Shell ─ build + az webapp deploy ─>
 
 | Piece | Choice | Why |
 | --- | --- | --- |
-| Hosting | App Service plan P1v3 (B2 for testing), Linux, Node 22 LTS | Managed, health checks, easy scale |
+| Hosting | App Service plan B1 (up to about 250 employees), Linux, Node 22 LTS | Managed, health checks, easy to scale up to B2 or P1v3 |
 | Region | Central India | Employees are in India at launch |
-| Database | PostgreSQL Flexible Server 16, Burstable B2s | Managed backups, point-in-time restore |
+| Database | PostgreSQL Flexible Server 16, Burstable B1ms | Managed backups, point-in-time restore |
 | Files | App Service persistent storage at `/home/data/uploads` | Shared across instances, no extra service for v1 |
 | Email | SMTP (Microsoft 365, SendGrid or Azure Communication Services) | Works with the built-in mail queue |
 | Secrets | App Settings (optionally Key Vault references) | No secrets in the repository |
@@ -115,7 +115,7 @@ PostgreSQL has been exercised mainly through SQLite so far, so this dry run on t
 - **Backups:** PostgreSQL Flexible Server takes automated backups with point-in-time restore (set retention to 14-35 days). Uploaded files are on `/home`; enable **App Service Backup** (App Service > Backups) so files and settings are protected too. Restore the database and files from the same point in time.
 - **Monitoring:** turn on **Application Insights** (App Service > Application Insights), add an availability test on `/api/health`, and alerts on HTTP 5xx and response time. **Log stream** shows live logs.
 - **Email problems:** failed emails show in **Admin > Email outbox**. Several app instances are safe: emails are claimed atomically.
-- **Scaling:** scale **up** the plan (P1v3 → P2v3) for heavy days; scaling **out** to 2+ instances is supported because voting is decided by database constraints and `/home` is shared. Raise PostgreSQL to General Purpose if you see database CPU pressure in the last hour of a big contest.
+- **Scaling:** scale **up** the plan (B1 → B2 → P1v3, one command or a few clicks, no redeploy) if uploads or voting feel slow; scaling **out** to 2+ instances is supported because voting is decided by database constraints and `/home` is shared. Raise PostgreSQL to General Purpose if you see database CPU pressure in the last hour of a big contest.
 - **Updates:** run the three-step manual deploy above. Run `npm test` locally first. Migrations run automatically on start. Avoid deploying in the last hour of a live contest (a restart takes seconds and loses no votes).
 - **Staging:** create a second web app (or a deployment slot) with its own database for rehearsals; deploy to it with the same script.
 - **Secrets hygiene:** rotate the SMTP and database passwords yearly. Keep `APP_SECRET` as it is; changing it makes existing voter receipts unreadable (votes and results are unaffected).
@@ -133,10 +133,14 @@ Keep the previous `deploy-azure.zip` (rename it with the date). To roll back, ru
 
 ## Estimated monthly cost (Central India, list prices, approximate)
 
+Sized for the basic need: up to about 250 employees and up to 5 contests a month (about 4,000 emails a month). Contest count barely changes the bill because compute and database are flat monthly charges.
+
 | Item | Approx. |
 | --- | --- |
-| App Service P1v3 (B2 for testing is cheaper) | about 100-130 USD |
-| PostgreSQL Flexible B2s + 32 GB storage | about 30-40 USD |
-| Application Insights, backups, domain certificate | low, usage based |
+| App Service B1 (Always On, HTTPS, custom domain, free certificate) | about 15 USD |
+| PostgreSQL Flexible B1ms + 32 GB storage, automated backups | about 15-20 USD |
+| Email (Microsoft 365 SMTP free; Azure Communication Services under 1 USD) | 0-1 USD |
+| Application Insights, backup storage | about 2-4 USD |
+| **Total** | **about 30-40 USD per month** |
 
-Check the Azure pricing calculator for current numbers.
+Options: B2 (about 30 USD) gives more headroom for bulk uploads and big deadline rushes, so the total is about 50 USD. A 1-year reservation lowers the price by roughly 30-40%. A staging app is optional; create it only for dry runs and delete it afterwards. Azure Front Door with WAF is not needed at this size. Check the Azure pricing calculator for current numbers.
