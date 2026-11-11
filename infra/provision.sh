@@ -17,6 +17,8 @@ PLAN="${PLAN:-plan-choice-awards}"
 SKU="${SKU:-B1}"                                 # enough for ~250 employees; scale up to B2/P1v3 later if needed (az appservice plan update --sku B2)
 PG="${PG:-pg-$APP}"                              # PostgreSQL server name (globally unique)
 PG_ADMIN="${PG_ADMIN:-choiceadmin}"
+PG_TIER="${PG_TIER:-Burstable}"                  # if SkuNotAvailable: list sizes with  az postgres flexible-server list-skus -l $LOC -o table  and pass PG_SKU=...
+PG_SKU="${PG_SKU:-Standard_B1ms}"
 PG_PASS="$(openssl rand -base64 24 | tr -d '=+/')"   # generated; stored in App Settings below
 APP_SECRET="$(openssl rand -hex 48)"
 CUSTOM_URL="${CUSTOM_URL:-https://lumovychoiceawards.com}"   # public address you will map (use https://$APP.azurewebsites.net until DNS is ready)
@@ -34,7 +36,7 @@ az group create -n "$RG" -l "$LOC" -o none
 echo "Creating PostgreSQL (takes a few minutes)..."
 az postgres flexible-server create -g "$RG" -n "$PG" -l "$LOC" \
   --admin-user "$PG_ADMIN" --admin-password "$PG_PASS" \
-  --tier Burstable --sku-name Standard_B1ms --storage-size 32 --version 16 \
+  --tier "$PG_TIER" --sku-name "$PG_SKU" --storage-size 32 --version 16 \
   --public-access 0.0.0.0 -o none          # 0.0.0.0 = allow Azure services only
 az postgres flexible-server db create -g "$RG" -s "$PG" -d choice -o none
 DB_URL="postgres://${PG_ADMIN}:${PG_PASS}@${PG}.postgres.database.azure.com:5432/choice?sslmode=require"
