@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One-time Azure set-up for Lumovy Choice Awards.
 # Run in Azure Cloud Shell (bash) or a terminal with `az login` done. Pass settings inline (see below), nothing to edit.
-# Creates: resource group, PostgreSQL Flexible Server + database, Azure Communication Services email (SMTP),
+# Creates: resource group, (optional) PostgreSQL Flexible Server, Azure Communication Services email (SMTP),
 # App Service plan + Linux web app (Node 22), app settings, persistent upload folder, health check and HTTPS only. Deploy afterwards with infra/deploy.sh (manual zip).
 set -euo pipefail
 
@@ -15,6 +15,7 @@ LOC="${LOC:-centralindia}"                       # closest to India employees
 APP="${APP:-lumovy-choice-awards}"               # becomes <APP>.azurewebsites.net (must be globally unique)
 PLAN="${PLAN:-plan-choice-awards}"
 SKU="${SKU:-B1}"                                 # enough for ~250 employees; scale up to B2/P1v3 later if needed (az appservice plan update --sku B2)
+DB="${DB:-sqlite}"                               # sqlite (no extra cost, one app instance, stored in /home/data) or postgres (managed, point-in-time restore)
 PG="${PG:-pg-$APP}"                              # PostgreSQL server name (globally unique)
 PG_ADMIN="${PG_ADMIN:-choiceadmin}"
 PG_TIER="${PG_TIER:-Burstable}"                  # if SkuNotAvailable: list sizes with  az postgres flexible-server list-skus -l $LOC -o table  and pass PG_SKU=...
@@ -33,13 +34,19 @@ MAIL_NAME="${MAIL_NAME:-Lumovy Choice Awards}"   # display name; the sender addr
 az account set --subscription "$SUB"
 az group create -n "$RG" -l "$LOC" -o none
 
-echo "Creating PostgreSQL (takes a few minutes)..."
-az postgres flexible-server create -g "$RG" -n "$PG" -l "$LOC" \
-  --admin-user "$PG_ADMIN" --admin-password "$PG_PASS" \
-  --tier "$PG_TIER" --sku-name "$PG_SKU" --storage-size 32 --version 16 \
-  --public-access 0.0.0.0 -o none          # 0.0.0.0 = allow Azure services only
-az postgres flexible-server db create -g "$RG" -s "$PG" -d choice -o none
-DB_URL="postgres://${PG_ADMIN}:${PG_PASS}@${PG}.postgres.database.azure.com:5432/choice?sslmode=require"
+case "$DB" in
+  sqlite) DB_SETTINGS=(SQLITE_JOURNAL=delete BACKUP_HOURS=6)   # database file lives in /home/data (persistent); no DATABASE_URL
+          echo "Database: built-in SQLite in /home/data (no separate server)." ;;
+  postgres)
+    echo "Creating PostgreSQL (takes a few minutes)..."
+    az postgres flexible-server create -g "$RG" -n "$PG" -l "$LOC" \
+      --admin-user "$PG_ADMIN" --admin-password "$PG_PASS" \
+      --tier "$PG_TIER" --sku-name "$PG_SKU" --storage-size 32 --version 16 \
+      --public-access 0.0.0.0 -o none          # 0.0.0.0 = allow Azure services only
+    az postgres flexible-server db create -g "$RG" -s "$PG" -d choice -o none
+    DB_SETTINGS=(DATABASE_URL="postgres://${PG_ADMIN}:${PG_PASS}@${PG}.postgres.database.azure.com:5432/choice?sslmode=require") ;;
+  *) echo "DB must be sqlite or postgres" >&2; exit 1 ;;
+esac
 
 echo "Creating Azure Communication Services (email)..."
 az extension add --name communication --upgrade --only-show-errors -y
@@ -79,7 +86,7 @@ az webapp config appsettings set -g "$RG" -n "$APP" -o none --settings \
   SCM_DO_BUILD_DURING_DEPLOYMENT=true \
   APP_URL="$CUSTOM_URL" \
   APP_SECRET="$APP_SECRET" \
-  DATABASE_URL="$DB_URL" \
+  "${DB_SETTINGS[@]}" \
   UPLOAD_DIR=/home/data/uploads \
   DATA_DIR=/home/data \
   MAIL_TRANSPORT=smtp MAIL_FROM="$MAIL_FROM" \
@@ -101,6 +108,8 @@ Email is sent through Azure Communication Services as: $MAIL_FROM
 
 Save the generated secrets in Key Vault or your password manager:
   APP_SECRET=$APP_SECRET
-  Database password=$PG_PASS
   SMTP password (Entra app secret)=$SMTP_PASS
 EOF
+if [ "$DB" = postgres ]; then echo "  Database password=$PG_PASS"; else
+  echo ""; echo "Database: SQLite file /home/data/choice.db, automatic backups in /home/data/backups."
+  echo "Keep this app on ONE instance (do not scale out). See docs/DEPLOYMENT.md > Database."; fi

@@ -1,4 +1,5 @@
 import { db, nowIso, parseJson } from '../db/index.js';
+import { backupNow } from './backup.js';
 import { audit } from './audit.js';
 import { tally, voterCount } from './scoring.js';
 import { entryLabel, formatDeadline, utcIsoToLocal, notFound } from './util.js';
@@ -29,6 +30,7 @@ export async function closeContest(id) {
   if (!n) return false;
   await db('ballot_drafts').where({ contest_id: id }).del();
   await audit(null, 'Voting closed automatically', id);
+  backupNow().catch(() => {}); // safe copy of the final votes (SQLite only)
   return true;
 }
 

@@ -1,9 +1,9 @@
 # Deployment on Azure (App Service)
 
-The portal runs as **one Azure App Service (Linux, Node 22) web app** with **Azure Database for PostgreSQL Flexible Server**, deployed **manually with a zip** (the same way as World Cup Arena). The web app serves both the API and the built React site from the same address, so there is a single thing to deploy, monitor and scale.
+The portal runs as **one Azure App Service (Linux, Node 22) web app** with a **built-in SQLite database stored on the app's persistent storage** (default), or optionally **Azure Database for PostgreSQL Flexible Server**, deployed **manually with a zip** (the same way as World Cup Arena). The web app serves both the API and the built React site from the same address, so there is a single thing to deploy, monitor and scale.
 
 ```
-Employees ──HTTPS──> App Service (Node 22)  ──> PostgreSQL Flexible Server
+Employees ──HTTPS──> App Service (Node 22)  ──> SQLite file in /home/data  (or PostgreSQL Flexible Server)
                          │  /home (persistent) = uploaded files
                          └──> Azure Communication Services Email (SMTP) for email
 You (Windows) ─ git archive ─> Cloud Shell ─ build + az webapp deploy ─> App Service
@@ -13,7 +13,7 @@ You (Windows) ─ git archive ─> Cloud Shell ─ build + az webapp deploy ─>
 | --- | --- | --- |
 | Hosting | App Service plan B1 (up to about 250 employees), Linux, Node 22 LTS | Managed, health checks, easy to scale up to B2 or P1v3 |
 | Region | Central India | Employees are in India at launch |
-| Database | PostgreSQL Flexible Server 16, Burstable B1ms | Managed backups, point-in-time restore |
+| Database | SQLite file in `/home/data/choice.db` (default, `DB=sqlite`), or PostgreSQL Flexible Server 16 (`DB=postgres`) | No extra cost and no extra service for up to about 250 employees and 50-100 voters per contest; PostgreSQL gives managed point-in-time restore and more than one instance |
 | Files | App Service persistent storage at `/home/data/uploads` | Shared across instances, no extra service for v1 |
 | Email | Azure Communication Services Email, through its SMTP endpoint (`smtp.azurecomm.net`) | Same Azure subscription, no mailbox or personal password, works with the built-in mail queue |
 | Secrets | App Settings (optionally Key Vault references) | No secrets in the repository |
@@ -34,14 +34,14 @@ Match this to how World Cup Arena was set up if it differs (for example an exist
 
 ### 1. Provision Azure (once)
 
-Open **Azure Cloud Shell (bash)**, clone the repo (or upload `infra/provision.sh`) and pass your settings inline. Nothing in the file needs editing. `SUB` (subscription id) and `ADMIN_EMAIL` are required; everything else has a default you can override the same way (`APP`, `PG`, `RG`, `LOC`, `SKU`, `CUSTOM_URL`, `ADMIN_NAME`, and so on). `APP` and `PG` must be globally unique (`PG` defaults to `pg-<APP>`). Use the `azurewebsites.net` address for `CUSTOM_URL` until your domain's DNS is ready:
+Open **Azure Cloud Shell (bash)**, clone the repo (or upload `infra/provision.sh`) and pass your settings inline. Nothing in the file needs editing. `SUB` (subscription id) and `ADMIN_EMAIL` are required; everything else has a default you can override the same way (`APP`, `PG`, `RG`, `LOC`, `SKU`, `CUSTOM_URL`, `ADMIN_NAME`, and so on). `APP` and `PG` must be globally unique (`PG` is only used with `DB=postgres` and defaults to `pg-<APP>`). Use the `azurewebsites.net` address for `CUSTOM_URL` until your domain's DNS is ready:
 
 ```bash
 SUB=<subscription id> ADMIN_EMAIL=<first HR admin email> APP=lumovy-choice-awards \
 CUSTOM_URL=https://lumovy-choice-awards.azurewebsites.net bash infra/provision.sh
 ```
 
-It creates the resource group, PostgreSQL server and database, the Azure Communication Services email resources (with a free Azure managed sender domain and an Entra app that is allowed to send through it), the App Service plan and web app, sets HTTPS-only, TLS 1.2, health check `/api/health`, Always On and all app settings (including the SMTP settings). At the end it prints the first-admin sign-in. **Save the printed `APP_SECRET`, database password and SMTP password in your password manager or Key Vault.**
+It creates the resource group, the database (nothing to create for the default SQLite; a PostgreSQL server only if you pass `DB=postgres`), the Azure Communication Services email resources (with a free Azure managed sender domain and an Entra app that is allowed to send through it), the App Service plan and web app, sets HTTPS-only, TLS 1.2, health check `/api/health`, Always On and all app settings (including the SMTP settings). At the end it prints the first-admin sign-in. **Save the printed `APP_SECRET`, database password and SMTP password in your password manager or Key Vault.**
 
 App settings it configures:
 
@@ -50,7 +50,8 @@ App settings it configures:
 | `NODE_ENV` | `production` |
 | `APP_URL` | public address (used in email links) |
 | `APP_SECRET` | random 96 hex characters. Signs sessions, protects voter receipts. Do not change later |
-| `DATABASE_URL` | PostgreSQL URL with `sslmode=require` |
+| `SQLITE_JOURNAL`, `BACKUP_HOURS` | SQLite only: `delete` (safe on Azure's network storage) and the automatic backup interval (6 hours) |
+| `DATABASE_URL` | PostgreSQL only: URL with `sslmode=require`. Leave it unset for SQLite |
 | `UPLOAD_DIR`, `DATA_DIR` | `/home/data/uploads`, `/home/data` (persistent) |
 | `MAIL_TRANSPORT`, `MAIL_FROM` | `smtp` and the sender, for example `Lumovy Choice Awards <DoNotReply@<guid>.azurecomm.net>` |
 | `SMTP_HOST`, `SMTP_PORT` | `smtp.azurecomm.net`, `587` |
@@ -122,7 +123,7 @@ The portal sends mail through its own queue and the ACS SMTP endpoint, so no one
 2. Start it, vote as the test employees, confirm the "Your vote is in" email.
 3. Let it close, check the results, publish, confirm the results email.
 
-PostgreSQL has been exercised mainly through SQLite so far, so this dry run on the real Azure database is required before the first real contest.
+The dry run on the real Azure setup is required before the first real contest. SQLite is the best-tested path in this project; PostgreSQL has had less testing, so run an extra careful dry run if you choose `DB=postgres`.
 
 ### 6. Go live
 
@@ -134,12 +135,24 @@ PostgreSQL has been exercised mainly through SQLite so far, so this dry run on t
 - [ ] Dry run completed
 - [ ] Announce, create the first contest, click **Start contest**
 
+## Database (SQLite by default)
+
+The portal stores everything in one SQLite file, `/home/data/choice.db`: people and regions, contests, entries' details, votes and voter receipts, drafts, email queue, settings and the activity log. Uploaded entry files and banners are in `/home/data/uploads`. Both are on the web app's persistent storage, so they survive restarts and redeploys (a zip deploy replaces the code, not `/home`). The setup is sized for up to about 250 employees and 50-100 voters per contest, which is far below what SQLite handles.
+
+Safe-by-default choices for Azure's network storage:
+- The journal mode is set to `delete` (not the faster `wal`) with full syncing, which SQLite documents as the safe mode on network file systems.
+- **Keep exactly one instance.** Do not scale out. Scale up (B1 → B2) if you need more power.
+- Automatic and on-demand backups, described under Operations below. Download a copy after every contest.
+
+To move to PostgreSQL later: provision with `DB=postgres` (or create the server and set `DATABASE_URL`) and ask for help to copy the data across. It is a one-off migration, not automatic.
+
 ## Operations
 
-- **Backups:** PostgreSQL Flexible Server takes automated backups with point-in-time restore (set retention to 14-35 days). Uploaded files are on `/home`; enable **App Service Backup** (App Service > Backups) so files and settings are protected too. Restore the database and files from the same point in time.
+- **Backups (SQLite):** the app saves a consistent copy of the database to `/home/data/backups` every 6 hours, when a contest starts and when voting closes (last 40 kept), and **Admin > Settings > Back up now** takes one on demand. These are on the same storage as the database, so also keep a copy outside Azure: after each contest, download the newest file with **App Service > Development Tools > Advanced Tools (Kudu) > Bash/File browser** or `az webapp ssh`, and store it safely. Enable **App Service Backup** for `/home` as an extra layer. **To restore:** stop the web app, copy a backup over `/home/data/choice.db`, delete `/home/data/choice.db-wal` and `choice.db-shm` if present, and start the app.
+- **Backups (PostgreSQL):** PostgreSQL Flexible Server takes automated backups with point-in-time restore (set retention to 14-35 days). Uploaded files are on `/home`; enable **App Service Backup** (App Service > Backups) so files and settings are protected too. Restore the database and files from the same point in time.
 - **Monitoring:** turn on **Application Insights** (App Service > Application Insights), add an availability test on `/api/health`, and alerts on HTTP 5xx and response time. **Log stream** shows live logs.
 - **Email problems:** failed emails show in **Admin > Email outbox**. Several app instances are safe: emails are claimed atomically.
-- **Scaling:** scale **up** the plan (B1 → B2 → P1v3, one command or a few clicks, no redeploy) if uploads or voting feel slow; scaling **out** to 2+ instances is supported because voting is decided by database constraints and `/home` is shared. Raise PostgreSQL to General Purpose if you see database CPU pressure in the last hour of a big contest.
+- **Scaling:** scale **up** the plan (B1 → B2 → P1v3, one command or a few clicks, no redeploy) if uploads or voting feel slow; scaling **out** to 2+ instances is supported **only with PostgreSQL** (with SQLite keep exactly one instance, because one database file cannot be shared by several running copies). Raise PostgreSQL to General Purpose if you see database CPU pressure in the last hour of a big contest.
 - **Updates:** run the three-step manual deploy above. Run `npm test` locally first. Migrations run automatically on start. Avoid deploying in the last hour of a live contest (a restart takes seconds and loses no votes).
 - **Staging:** create a second web app (or a deployment slot) with its own database for rehearsals; deploy to it with the same script.
 - **Secrets hygiene:** rotate the database password yearly, and renew the SMTP password (the Entra app client secret, valid 2 years) before it expires (see "SMTP secret expiry" above). Keep `APP_SECRET` as it is; changing it makes existing voter receipts unreadable (votes and results are unaffected).
@@ -147,7 +160,7 @@ PostgreSQL has been exercised mainly through SQLite so far, so this dry run on t
 ## Security on Azure
 
 - HTTPS only, TLS 1.2+, FTPS disabled, managed certificate.
-- PostgreSQL allows only Azure services; for stricter setups use a private endpoint and VNet integration, and Key Vault references for secrets.
+- With PostgreSQL, the server allows only Azure services; for stricter setups use a private endpoint and VNet integration, and Key Vault references for secrets.
 - Optional: restrict access to the company network with App Service **Access restrictions**, or put Azure Front Door with WAF in front.
 - Deploy access is whoever can run `az webapp deploy` (give people only the Website Contributor role on the resource group).
 
@@ -162,9 +175,11 @@ Sized for the basic need: up to about 250 employees and up to 5 contests a month
 | Item | Approx. |
 | --- | --- |
 | App Service B1 (Always On, HTTPS, custom domain, free certificate) | about 15 USD |
-| PostgreSQL Flexible B1ms + 32 GB storage, automated backups | about 15-20 USD |
+| Database: SQLite on the web app's storage (default) | 0 USD |
+| Database, only if you choose PostgreSQL Flexible B1ms + 32 GB | about 15-20 USD |
 | Email (Azure Communication Services, pay per email, about 0.25 USD per 1,000) | about 1 USD or less |
 | Application Insights, backup storage | about 2-4 USD |
-| **Total** | **about 30-40 USD per month** |
+| **Total (SQLite)** | **about 18-22 USD per month** |
+| **Total (with PostgreSQL)** | **about 33-42 USD per month** |
 
 Options: B2 (about 30 USD) gives more headroom for bulk uploads and big deadline rushes, so the total is about 50 USD. A 1-year reservation lowers the price by roughly 30-40%. A staging app is optional; create it only for dry runs and delete it afterwards. Azure Front Door with WAF is not needed at this size. Check the Azure pricing calculator for current numbers.

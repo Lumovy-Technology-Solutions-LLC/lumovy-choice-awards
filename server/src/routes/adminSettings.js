@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { db, nowIso } from '../db/index.js';
+import { db, dialect, nowIso } from '../db/index.js';
 import { config } from '../config.js';
 import { audit } from '../lib/audit.js';
 import { getFlags, setFlag } from '../lib/settings.js';
-import { wrap } from '../lib/util.js';
+import { backupNow, backupDir, backupsEnabled, listBackups } from '../lib/backup.js';
+import { bad, wrap } from '../lib/util.js';
 
 const r = Router();
 
@@ -18,6 +19,8 @@ async function payload() {
     from: config.mail.from,
     usersWithoutPassword: Number(noPassword.n),
     failedEmails24h: Number(failed.n),
+    database: dialect === 'pg' ? 'postgres' : 'sqlite',
+    backups: backupsEnabled ? { dir: backupDir, count: listBackups().length, last: listBackups()[0]?.at ?? null, everyHours: config.backup.hours } : null,
   };
 }
 
@@ -38,6 +41,14 @@ r.put('/settings', wrap(async (req, res) => {
     }
     await audit(req.user, `${LABEL[flag]} switched ${b[flag] ? 'on' : 'off'}`);
   }
+  res.json(await payload());
+}));
+
+// SQLite only: take a consistent copy of the database now (also runs automatically).
+r.post('/backup', wrap(async (req, res) => {
+  if (!backupsEnabled) throw bad('Backups are only needed with the built-in database. PostgreSQL keeps its own backups.');
+  await backupNow();
+  await audit(req.user, 'Database backup taken');
   res.json(await payload());
 }));
 

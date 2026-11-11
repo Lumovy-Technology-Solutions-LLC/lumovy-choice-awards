@@ -89,7 +89,7 @@ All emails go through the `outbox` table. A worker claims queued rows, sends the
 ## Scaling notes
 
 - Reads are indexed; a vote is one short transaction.
-- Use PostgreSQL with more than one API instance for the last-hour rush. The close job and the mail worker are idempotent, so running them on every instance is safe.
+- Use PostgreSQL if you need more than one API instance (SQLite must stay on a single instance). For up to about 250 employees one instance is plenty. The close job and the mail worker are idempotent, so running them on every instance is safe.
 - Uploads are on local disk. For several instances use shared storage, or replace `lib/files.js` with S3 or Azure Blob.
 
 ## Deployment
@@ -110,6 +110,7 @@ Put it behind HTTPS (a reverse proxy or load balancer). `trust proxy` is enabled
 | `PORT`, `APP_URL`, `NODE_ENV` | Server port, public URL used in email links, environment |
 | `APP_SECRET` | Signs sessions and derives receipt keys. **Required and random in production** |
 | `DATABASE_URL` | Empty for SQLite; `postgres://...` for PostgreSQL |
+| `SQLITE_JOURNAL`, `BACKUP_HOURS`, `BACKUP_KEEP` | SQLite only: `wal` (default) or `delete` (use on Azure network storage), backup interval (6) and number kept (40) |
 | `UPLOAD_DIR` | Where uploaded files live |
 | `MAIL_TRANSPORT`, `MAIL_FROM`, `SMTP_*` | `dev` or `smtp` |
 | `BOOTSTRAP_ADMIN_*` | First HR admin, created if no admin exists |

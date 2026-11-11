@@ -35,7 +35,7 @@ async function otpLogin(c, email) {
 }
 
 before(async () => {
-  proc = spawn(process.execPath, ['src/index.js'], { cwd: root, env: { ...process.env, PORT: String(PORT), SQLITE_FILE: dbFile, UPLOAD_DIR: path.join(tmp, 'up'), MAIL_TRANSPORT: 'dev', NODE_ENV: 'development', BOOTSTRAP_ADMIN_EMAIL: 'hr@test.com', BOOTSTRAP_ADMIN_PASSWORD: 'TestPass!12345' }, stdio: ['ignore', 'ignore', 'inherit'] });
+  proc = spawn(process.execPath, ['src/index.js'], { cwd: root, env: { ...process.env, PORT: String(PORT), SQLITE_FILE: dbFile, SQLITE_JOURNAL: 'delete', UPLOAD_DIR: path.join(tmp, 'up'), MAIL_TRANSPORT: 'dev', NODE_ENV: 'development', BOOTSTRAP_ADMIN_EMAIL: 'hr@test.com', BOOTSTRAP_ADMIN_PASSWORD: 'TestPass!12345' }, stdio: ['ignore', 'ignore', 'inherit'] });
   for (let i = 0; i < 160; i++) { try { if ((await fetch(base + '/api/health')).ok) break; } catch { /* wait */ } await new Promise((r) => setTimeout(r, 250)); }
   raw = knex({ client: 'better-sqlite3', connection: { filename: dbFile }, useNullAsDefault: true });
 });
@@ -205,4 +205,25 @@ test('HR can switch email off: sign-in codes and notifications are separate swit
   // only admins can change it
   const emp = new Client(); await otpLogin(emp, 'z2@test.com');
   assert.equal((await emp.put('/api/admin/settings', { emailNotifications: false })).status, 403);
+});
+
+test('SQLite: runs without WAL (Azure mode) and a backup holds all the data', async () => {
+  const admin = new Client();
+  assert.equal((await admin.post('/api/auth/login', { email: 'hr@test.com', password: 'TestPass!12345' })).status, 200);
+  assert.equal((await raw.raw('pragma journal_mode')).at(0).journal_mode, 'delete');
+
+  const r = await admin.post('/api/admin/backup');
+  assert.equal(r.status, 200);
+  assert.ok(r.data.backups.count >= 1);
+  const dir = path.join(path.dirname(dbFile), 'backups');
+  const file = fs.readdirSync(dir).filter((f) => f.endsWith('.db')).sort().at(-1);
+  const copy = knex({ client: 'better-sqlite3', connection: { filename: path.join(dir, file), flags: ['readonly'] }, useNullAsDefault: true });
+  try {
+    for (const t of ['users', 'contests', 'entries', 'votes', 'voter_status', 'outbox']) {
+      const live = Number((await raw(t).count({ n: '*' }).first()).n);
+      const bak = Number((await copy(t).count({ n: '*' }).first()).n);
+      assert.equal(bak, live, `${t}: backup has the same rows`);
+    }
+    assert.ok(Number((await copy('votes').count({ n: '*' }).first()).n) > 0, 'votes are in the backup');
+  } finally { await copy.destroy(); }
 });

@@ -12,6 +12,7 @@ import { bootstrap } from './db/bootstrap.js';
 import { loadUser, requireAdmin } from './lib/auth.js';
 import { closeDueContests, refreshRegions } from './lib/contests.js';
 import { startMailWorker } from './lib/mail.js';
+import { startBackups } from './lib/backup.js';
 import authRoutes from './routes/auth.js';
 import portalRoutes from './routes/portal.js';
 import fileRoutes from './routes/files.js';
@@ -86,5 +87,6 @@ app.use((err, _req, res, _next) => {
 // Voting opens when HR clicks Start, and closes on its own at the end time.
 setInterval(() => closeDueContests().catch((e) => console.error('close job', e)), 5000).unref();
 startMailWorker();
+startBackups();
 
 app.listen(config.port, () => console.log(`Lumovy Choice Awards API on http://localhost:${config.port} (db: ${db.client.config.client}, mail: ${config.mail.transport})`));

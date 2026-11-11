@@ -18,6 +18,10 @@ export const config = {
   databaseUrl: process.env.DATABASE_URL || '',
   uploadDir: path.resolve(root, process.env.UPLOAD_DIR || './data/uploads'),
   dataDir: path.resolve(root, process.env.DATA_DIR || './data'),
+  // SQLite only. "wal" is fastest and fine on a normal disk. On Azure App Service /home is network storage, where SQLite
+  // recommends "delete" (set SQLITE_JOURNAL=delete). Backups are consistent copies taken while the app runs.
+  sqliteJournal: process.env.SQLITE_JOURNAL === 'delete' ? 'delete' : 'wal',
+  backup: { keep: Number(process.env.BACKUP_KEEP ?? 40), hours: Number(process.env.BACKUP_HOURS || 6) },
   mail: {
     transport: process.env.MAIL_TRANSPORT || 'dev',
     from: process.env.MAIL_FROM || 'Lumovy Choice Awards <choice-awards@lumovy.com>',

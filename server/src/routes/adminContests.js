@@ -9,6 +9,7 @@ import { audit } from '../lib/audit.js';
 import { getContest, closeContest, hydrate, contestShape, entryShape, isComplete, regionRecipients, resultsPayload } from '../lib/contests.js';
 import { processUpload, saveBanner, removeFiles, ENTRY_TYPES, typeForExt } from '../lib/files.js';
 import { getFlags } from '../lib/settings.js';
+import { backupNow } from '../lib/backup.js';
 import { queueTemplated, getTemplate, renderEmail, queue, TEMPLATE_META, TEMPLATE_KEYS, voteButton, resultsButton, listBlock } from '../lib/mail.js';
 import { tally } from '../lib/scoring.js';
 import { wrap, bad, notFound, conflict, localToUtcIso, formatDeadline, entryLabel } from '../lib/util.js';
@@ -177,6 +178,7 @@ r.post('/contests/:id/start', wrap(async (req, res) => {
     });
     await audit(req.user, 'Contest started', c.id, { emails: recipients.length, end: c.end_at }, t);
   });
+  backupNow().catch(() => {}); // safe copy at the start of voting (SQLite only)
   res.json({ ok: true, emailsQueued: recipients.length });
 }));
 
