@@ -16,7 +16,7 @@ export function issueSession(res, user) {
   });
 }
 export function clearSession(res) {
-  res.clearCookie(COOKIE, { path: '/' });
+  res.clearCookie(COOKIE, { path: '/', httpOnly: true, sameSite: 'lax', secure: config.isProd });
 }
 
 export const publicUser = (u) => ({

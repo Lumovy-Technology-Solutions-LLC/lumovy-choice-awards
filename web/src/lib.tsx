@@ -13,9 +13,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const q = useQuery({ queryKey: ['me'], queryFn: () => api.get<{ user: User | null; mailMode: string; emailSignIn: boolean }>('/api/auth/me'), staleTime: 60_000, retry: false });
   const refresh = useCallback(async () => { await qc.invalidateQueries({ queryKey: ['me'] }); }, [qc]);
   const signOut = useCallback(async () => {
-    await api.post('/api/auth/logout');
+    const prev = qc.getQueryData<any>(['me']);
+    try { await api.post('/api/auth/logout'); } catch { /* cookie may already be gone */ }
     qc.clear();
-    await qc.invalidateQueries({ queryKey: ['me'] });
+    // Set the signed-out state directly (clear() drops the query, so invalidating would do nothing).
+    qc.setQueryData(['me'], { mailMode: prev?.mailMode ?? 'dev', emailSignIn: prev?.emailSignIn ?? true, user: null });
   }, [qc]);
   useEffect(() => {
     const h = () => { qc.setQueryData(['me'], (d: any) => ({ ...d, user: null })); };

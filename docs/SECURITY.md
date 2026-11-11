@@ -5,7 +5,7 @@
 - Only employees HR has added (and left active) can sign in. Switching someone off blocks them immediately, including existing sessions.
 - Two methods: a **6-digit email code** (expires in 10 minutes, 5 attempts, 60-second resend gap, stored hashed) or a **password** (min 10 characters with letters and numbers, bcrypt cost 11).
 - Passwords: 5 wrong attempts lock password sign-in for 10 minutes (the email code still works).
-- The sign-in screens answer the same way whether or not an email is on the list, so the list cannot be probed.
+- The sign-in screens tell people plainly when an email is not on the eligible list (this is an internal tool). Guessing is slowed by a rate limit and password lockout.
 - Sessions are signed JWTs in an `httpOnly`, `SameSite=Lax` cookie (`Secure` in production), valid 12 hours. Signing out clears it.
 - Sign-in endpoints are rate limited.
 

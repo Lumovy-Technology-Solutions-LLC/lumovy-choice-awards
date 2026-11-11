@@ -35,6 +35,7 @@ export default function Login() {
   async function requestCode(e?: FormEvent) {
     e?.preventDefault();
     if (!email.trim()) { setError('Enter your work email.'); return; }
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) { setError('That does not look like an email address. Use the form name@lumovy.com.'); return; }
     setBusy(true); setError('');
     try {
       const r = await api.post<{ devMailbox: boolean }>('/api/auth/otp/request', { email });
@@ -123,7 +124,7 @@ export default function Login() {
 
           {mode === 'otp' && sent && (
             <div className="form">
-              <div className="notice"><Info size={16} style={{ flex: 'none', marginTop: 2 }} /><span>If <b>{email}</b> is on the eligible list, a 6-digit code is on its way. It works for 10 minutes.</span></div>
+              <div className="notice"><Info size={16} style={{ flex: 'none', marginTop: 2 }} /><span>We sent a 6-digit code to <b>{email}</b>. It works for 10 minutes.</span></div>
               <div className="otp" role="group" aria-label="6-digit code">
                 {digits.map((d, i) => (
                   <input key={i} ref={(el) => { refs.current[i] = el; }} className="input" inputMode="numeric" autoComplete={i === 0 ? 'one-time-code' : 'off'} maxLength={6} value={d}

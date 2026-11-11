@@ -12,16 +12,20 @@ import { wrap, bad, normEmail, sha256, randomCode, HttpError } from '../lib/util
 const r = Router();
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: config.isProd ? 30 : 300, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many attempts. Please wait a few minutes and try again.' } });
 
-const GENERIC_FAIL = 'That email or password is not right, or you are not on the eligible list. Check with HR if you think this is a mistake.';
+const NOT_ELIGIBLE = 'We could not find that email on the eligible list. Check the spelling, or ask HR to add you.';
+const WRONG_PASSWORD = 'That password is not right. Try again, or sign in with an email code.';
+const NO_PASSWORD = 'No password is set for this account yet. Sign in with an email code, then set a password from your account menu.';
+const emailField = z.string({ error: 'Enter your work email.' }).trim().min(1, 'Enter your work email.').email('That does not look like an email address. Use the form name@lumovy.com.');
 
 // ---- one-time code ----
 r.post('/otp/request', limiter, wrap(async (req, res) => {
-  const { email } = z.object({ email: z.string().min(3) }).parse(req.body);
+  const { email } = z.object({ email: emailField }).parse(req.body);
   if (!(await getFlags()).emailSignIn) throw new HttpError(403, 'Email codes are switched off right now. Sign in with your password, or ask HR for help.', 'email_off');
   const e = normEmail(email);
   const user = await db('users').where({ email: e }).first();
-  // Same answer whether or not the email is eligible, so the list cannot be probed.
-  if (user && user.active) {
+  // Internal tool: tell people plainly when they are not on the list (the rate limiter slows guessing).
+  if (!user || !user.active) throw new HttpError(404, NOT_ELIGIBLE, 'not_eligible');
+  {
     const recent = await db('otp_codes').where({ email: e }).where('created_at', '>', new Date(Date.now() - 60_000).toISOString()).first();
     if (!recent) {
       const code = randomCode();
@@ -34,11 +38,11 @@ r.post('/otp/request', limiter, wrap(async (req, res) => {
       }]);
     }
   }
-  res.json({ ok: true, message: 'If that email is on the eligible list, we have sent a 6-digit code.', devMailbox: config.mail.transport === 'dev' && !config.isProd });
+  res.json({ ok: true, message: 'We have sent a 6-digit code.', devMailbox: config.mail.transport === 'dev' && !config.isProd });
 }));
 
 r.post('/otp/verify', limiter, wrap(async (req, res) => {
-  const { email, code } = z.object({ email: z.string(), code: z.string().regex(/^\d{6}$/, 'Enter the 6-digit code.') }).parse(req.body);
+  const { email, code } = z.object({ email: emailField, code: z.string().regex(/^\d{6}$/, 'Enter the 6-digit code.') }).parse(req.body);
   const e = normEmail(email);
   const otp = await db('otp_codes').where({ email: e, used: false }).orderBy('id', 'desc').first();
   const fail = new HttpError(401, 'That code is not right or has expired. Request a new one.');
@@ -57,10 +61,11 @@ r.post('/otp/verify', limiter, wrap(async (req, res) => {
 
 // ---- password ----
 r.post('/login', limiter, wrap(async (req, res) => {
-  const { email, password } = z.object({ email: z.string(), password: z.string().min(1) }).parse(req.body);
+  const { email, password } = z.object({ email: emailField, password: z.string({ error: 'Enter your password.' }).min(1, 'Enter your password.') }).parse(req.body);
   const user = await db('users').where({ email: normEmail(email) }).first();
-  const fail = new HttpError(401, GENERIC_FAIL);
-  if (!user || !user.active || !user.password_hash) { await bcrypt.compare(password, '$2a$10$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalidinv'); throw fail; }
+  const fail = new HttpError(401, WRONG_PASSWORD);
+  if (!user || !user.active) throw new HttpError(404, NOT_ELIGIBLE, 'not_eligible');
+  if (!user.password_hash) throw new HttpError(401, NO_PASSWORD, 'no_password');
   if (user.locked_until && new Date(user.locked_until) > new Date())
     throw new HttpError(429, 'Too many wrong passwords. Try again in a few minutes, or sign in with an email code.');
   if (!(await bcrypt.compare(password, user.password_hash))) {
