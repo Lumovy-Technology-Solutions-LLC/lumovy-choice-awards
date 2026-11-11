@@ -1,29 +1,31 @@
 #!/usr/bin/env bash
 # One-time Azure set-up for Lumovy Choice Awards.
-# Run in Azure Cloud Shell (bash) or a terminal with `az login` done. Review the variables first.
+# Run in Azure Cloud Shell (bash) or a terminal with `az login` done. Pass settings inline (see below), nothing to edit.
 # Creates: resource group, PostgreSQL Flexible Server + database, Azure Communication Services email (SMTP),
 # App Service plan + Linux web app (Node 22), app settings, persistent upload folder, health check and HTTPS only. Deploy afterwards with infra/deploy.sh (manual zip).
 set -euo pipefail
 
-# ---------- edit these ----------
-SUB="<subscription id>"
-RG="rg-choice-awards-prod"
-LOC="centralindia"                       # closest to India employees
-APP="lumovy-choice-awards"               # becomes <APP>.azurewebsites.net (must be globally unique)
-PLAN="plan-choice-awards"
-SKU="B1"                                 # enough for ~250 employees; scale up to B2/P1v3 later if needed (az appservice plan update --sku B2)
-PG="pg-choice-awards"                    # PostgreSQL server name (globally unique)
-PG_ADMIN="choiceadmin"
+# ---------- settings: pass them inline, nothing to edit ----------
+# Required:  SUB (subscription id), ADMIN_EMAIL (first HR admin).  Everything else has a default; override any of them inline, e.g.
+#   SUB=xxxx ADMIN_EMAIL=hr@lumovy.com APP=lumovy-choice-awards PG=pg-lumovy-choice bash infra/provision.sh
+SUB="${SUB:?Set SUB to your subscription id, e.g. SUB=xxxx bash infra/provision.sh}"
+ADMIN_EMAIL="${ADMIN_EMAIL:?Set ADMIN_EMAIL to the first HR admin email}"
+RG="${RG:-rg-choice-awards-prod}"
+LOC="${LOC:-centralindia}"                       # closest to India employees
+APP="${APP:-lumovy-choice-awards}"               # becomes <APP>.azurewebsites.net (must be globally unique)
+PLAN="${PLAN:-plan-choice-awards}"
+SKU="${SKU:-B1}"                                 # enough for ~250 employees; scale up to B2/P1v3 later if needed (az appservice plan update --sku B2)
+PG="${PG:-pg-$APP}"                              # PostgreSQL server name (globally unique)
+PG_ADMIN="${PG_ADMIN:-choiceadmin}"
 PG_PASS="$(openssl rand -base64 24 | tr -d '=+/')"   # generated; stored in App Settings below
 APP_SECRET="$(openssl rand -hex 48)"
-CUSTOM_URL="https://lumovychoiceawards.com"   # public address you will map (or use https://$APP.azurewebsites.net first)
-ADMIN_EMAIL="<first HR admin email>"
-ADMIN_NAME="HR Admin"
+CUSTOM_URL="${CUSTOM_URL:-https://lumovychoiceawards.com}"   # public address you will map (use https://$APP.azurewebsites.net until DNS is ready)
+ADMIN_NAME="${ADMIN_NAME:-HR Admin}"
 ADMIN_TEMP_PASSWORD="$(openssl rand -base64 18 | tr -d '=+/')A1!"
-ACS="acs-choice-awards"                  # Azure Communication Services resource (sends the email)
-ACS_EMAIL="acse-choice-awards"           # its Email Communication Service
-ACS_DATA_LOCATION="India"                # where ACS stores its data
-MAIL_NAME="Lumovy Choice Awards"         # display name; the sender address comes from the Azure managed domain (see docs/DEPLOYMENT.md to switch to lumovy.com)
+ACS="${ACS:-acs-$APP}"                           # Azure Communication Services resource (sends the email)
+ACS_EMAIL="${ACS_EMAIL:-acse-$APP}"              # its Email Communication Service
+ACS_DATA_LOCATION="${ACS_DATA_LOCATION:-India}"  # where ACS stores its data
+MAIL_NAME="${MAIL_NAME:-Lumovy Choice Awards}"   # display name; the sender address comes from the Azure managed domain (see docs/DEPLOYMENT.md to switch to your own domain)
 # --------------------------------
 
 az account set --subscription "$SUB"

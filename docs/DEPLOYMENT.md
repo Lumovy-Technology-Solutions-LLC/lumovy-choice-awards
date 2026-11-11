@@ -34,10 +34,11 @@ Match this to how World Cup Arena was set up if it differs (for example an exist
 
 ### 1. Provision Azure (once)
 
-Open **Azure Cloud Shell (bash)**, clone the repo (or upload `infra/provision.sh`), edit the variables at the top (subscription, names, first admin, URL), then run. Do not commit your edited copy:
+Open **Azure Cloud Shell (bash)**, clone the repo (or upload `infra/provision.sh`) and pass your settings inline. Nothing in the file needs editing. `SUB` (subscription id) and `ADMIN_EMAIL` are required; everything else has a default you can override the same way (`APP`, `PG`, `RG`, `LOC`, `SKU`, `CUSTOM_URL`, `ADMIN_NAME`, and so on). `APP` and `PG` must be globally unique (`PG` defaults to `pg-<APP>`). Use the `azurewebsites.net` address for `CUSTOM_URL` until your domain's DNS is ready:
 
 ```bash
-bash infra/provision.sh
+SUB=<subscription id> ADMIN_EMAIL=<first HR admin email> APP=lumovy-choice-awards \
+CUSTOM_URL=https://lumovy-choice-awards.azurewebsites.net bash infra/provision.sh
 ```
 
 It creates the resource group, PostgreSQL server and database, the Azure Communication Services email resources (with a free Azure managed sender domain and an Entra app that is allowed to send through it), the App Service plan and web app, sets HTTPS-only, TLS 1.2, health check `/api/health`, Always On and all app settings (including the SMTP settings). At the end it prints the first-admin sign-in. **Save the printed `APP_SECRET`, database password and SMTP password in your password manager or Key Vault.**
