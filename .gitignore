@@ -6,3 +6,4 @@ server/.env
 _proto/
 *.log
 .DS_Store
+*.tsbuildinfo

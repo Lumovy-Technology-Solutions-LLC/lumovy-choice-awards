@@ -7,7 +7,7 @@ import { Empty, ErrorState, Modal, PageLoader } from '../../components/ui';
 
 interface Msg { id: number; contest_id: number | null; kind: string; to_email: string; to_name: string; subject: string; status: string; attempts: number; error: string | null; created_at: string; sent_at: string | null }
 const KIND: Record<string, string> = { contest_started: 'Contest started', vote_confirmation: 'Your vote is in', results_declared: 'Results declared', reminder: 'Reminder', deadline_extended: 'Deadline extended', otp: 'Sign-in code', test: 'Test email' };
-const TONE: Record<string, string> = { sent: 'good', captured: 'brand', queued: 'warn', sending: 'warn', failed: 'bad' };
+const TONE: Record<string, string> = { sent: 'good', captured: 'brand', queued: 'warn', sending: 'warn', failed: 'bad', cancelled: '' };
 
 export default function Outbox() {
   const [status, setStatus] = useState(''); const [kind, setKind] = useState(''); const [page, setPage] = useState(1); const [open, setOpen] = useState<number | null>(null);
@@ -21,7 +21,7 @@ export default function Outbox() {
       <div className="admin-top"><div><div className="eyebrow">HR admin</div><h1>Email outbox</h1><p className="hint" style={{ marginTop: 4 }}>Every email the portal sends is recorded here.</p></div></div>
       <div className="row">{Object.entries(d.stats).map(([k, v]) => <span key={k} className={`badge ${TONE[k] || ''}`}>{k}: {v}</span>)}</div>
       <div className="toolbar">
-        <select className="input" aria-label="Status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}><option value="">All statuses</option>{['queued', 'sent', 'captured', 'failed'].map((s) => <option key={s}>{s}</option>)}</select>
+        <select className="input" aria-label="Status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}><option value="">All statuses</option>{['queued', 'sent', 'captured', 'failed', 'cancelled'].map((s) => <option key={s}>{s}</option>)}</select>
         <select className="input" aria-label="Kind" value={kind} onChange={(e) => { setKind(e.target.value); setPage(1); }}><option value="">All kinds</option>{Object.entries(KIND).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
       </div>
       <div className="table-wrap">

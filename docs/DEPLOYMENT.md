@@ -5,7 +5,7 @@ The portal runs as **one Azure App Service (Linux, Node 22) web app** with **Azu
 ```
 Employees ──HTTPS──> App Service (Node 22)  ──> PostgreSQL Flexible Server
                          │  /home (persistent) = uploaded files
-                         └──> SMTP (Microsoft 365 / SendGrid / ACS) for email
+                         └──> Azure Communication Services Email (SMTP) for email
 You (Windows) ─ git archive ─> Cloud Shell ─ build + az webapp deploy ─> App Service
 ```
 
@@ -15,7 +15,7 @@ You (Windows) ─ git archive ─> Cloud Shell ─ build + az webapp deploy ─>
 | Region | Central India | Employees are in India at launch |
 | Database | PostgreSQL Flexible Server 16, Burstable B1ms | Managed backups, point-in-time restore |
 | Files | App Service persistent storage at `/home/data/uploads` | Shared across instances, no extra service for v1 |
-| Email | SMTP (Microsoft 365, SendGrid or Azure Communication Services) | Works with the built-in mail queue |
+| Email | Azure Communication Services Email, through its SMTP endpoint (`smtp.azurecomm.net`) | Same Azure subscription, no mailbox or personal password, works with the built-in mail queue |
 | Secrets | App Settings (optionally Key Vault references) | No secrets in the repository |
 | Deploy | Manual zip deploy from Cloud Shell (`infra/deploy.sh`) | Simple, same as World Cup Arena. No pipeline for now |
 | Domain | Custom domain + free App Service managed certificate | HTTPS |
@@ -26,20 +26,21 @@ Match this to how World Cup Arena was set up if it differs (for example an exist
 
 - An Azure subscription where you can create resources, and Cloud Shell access.
 - The public address you want (for example `https://choice.lumovy.com`) and DNS access.
-- SMTP details for the sender address (with SPF and DKIM set up for the domain).
+- Permission to create an app registration in your Entra tenant (the script creates the email sign-in). If you do not have it, ask your IT admin to run step 1 or do the manual email steps below.
+- Optional, for later: DNS access for `lumovy.com` to send from your own address (see "Email" below). Not needed to go live.
 - The first HR admin's name and email.
 
 ## Step by step
 
 ### 1. Provision Azure (once)
 
-Open **Azure Cloud Shell (bash)**, clone the repo (or upload `infra/provision.sh`), edit the variables at the top (subscription, names, SMTP, first admin, URL), then run:
+Open **Azure Cloud Shell (bash)**, clone the repo (or upload `infra/provision.sh`), edit the variables at the top (subscription, names, first admin, URL), then run. Do not commit your edited copy:
 
 ```bash
 bash infra/provision.sh
 ```
 
-It creates the resource group, PostgreSQL server and database, App Service plan and web app, sets HTTPS-only, TLS 1.2, health check `/api/health`, Always On and all app settings. At the end it prints the first-admin sign-in. **Save the printed `APP_SECRET` and database password in your password manager or Key Vault.**
+It creates the resource group, PostgreSQL server and database, the Azure Communication Services email resources (with a free Azure managed sender domain and an Entra app that is allowed to send through it), the App Service plan and web app, sets HTTPS-only, TLS 1.2, health check `/api/health`, Always On and all app settings (including the SMTP settings). At the end it prints the first-admin sign-in. **Save the printed `APP_SECRET`, database password and SMTP password in your password manager or Key Vault.**
 
 App settings it configures:
 
@@ -50,7 +51,9 @@ App settings it configures:
 | `APP_SECRET` | random 96 hex characters. Signs sessions, protects voter receipts. Do not change later |
 | `DATABASE_URL` | PostgreSQL URL with `sslmode=require` |
 | `UPLOAD_DIR`, `DATA_DIR` | `/home/data/uploads`, `/home/data` (persistent) |
-| `MAIL_TRANSPORT`, `MAIL_FROM`, `SMTP_*` | `smtp` and your sender |
+| `MAIL_TRANSPORT`, `MAIL_FROM` | `smtp` and the sender, for example `Lumovy Choice Awards <DoNotReply@<guid>.azurecomm.net>` |
+| `SMTP_HOST`, `SMTP_PORT` | `smtp.azurecomm.net`, `587` |
+| `SMTP_USER`, `SMTP_PASS` | `<ACS resource name>.<Entra app client id>.<tenant id>` and the Entra app client secret |
 | `BOOTSTRAP_ADMIN_*` | first HR admin (remove the password after first sign-in) |
 | `WEBSITES_ENABLE_APP_SERVICE_STORAGE` | `true` (keeps `/home` persistent) |
 
@@ -85,6 +88,26 @@ Do **not** use `-x "server/src/*"` like the World Cup Arena command: this app ru
 2. Add the domain, then **Add binding** with an **App Service Managed Certificate** (free).
 3. Make sure `APP_URL` is the final `https://` address, then restart the app.
 
+### Email (Azure Communication Services)
+
+The portal sends mail through its own queue and the ACS SMTP endpoint, so no one's personal mailbox or password is involved. `provision.sh` sets everything up with a free **Azure managed domain**, so emails come from `DoNotReply@<guid>.azurecomm.net` and work immediately. That address is fine for go-live, though some mail systems may put the first messages in spam.
+
+**Send from your own address (recommended before the first real contest):**
+
+1. Azure portal > your Email Communication Service (`acse-choice-awards`) > **Provision domains > Add domain > Custom domain**, enter `lumovy.com` (or a sub-domain such as `choice.lumovy.com`).
+2. Add the DNS records it shows (a TXT to verify, SPF, and two DKIM CNAMEs) at your DNS host, then click **Verify**.
+3. Open the domain > **MailFrom addresses > Add**, for example `choice-awards` (the full address becomes `choice-awards@lumovy.com`).
+4. In the Communication Service resource (`acs-choice-awards`) > **Email > Domains**, connect the new domain.
+5. In the web app > **Environment variables**, set `MAIL_FROM` to `Lumovy Choice Awards <choice-awards@lumovy.com>`, save and restart.
+
+**If `provision.sh` cannot create the Entra app** (no permission in your tenant): create an app registration and client secret in Entra ID, give it the **Communication and Email Service Owner** role on the `acs-choice-awards` resource (Access control (IAM)), then set `SMTP_USER` to `<ACS resource name>.<app client id>.<tenant id>` and `SMTP_PASS` to the client secret in App Service environment variables.
+
+**Switching email off:** HR admins can turn email off at any time in **Admin > Settings**, with no redeploy. There are two switches. **Email notifications** covers the contest started, vote confirmation, results, reminder and deadline emails; when off they are skipped (not stored), and anything still waiting in the outbox is cancelled. **Email sign-in codes** covers the 6-digit code login; when off, the sign-in page shows the password option only. Turn the second one off only if people have passwords (Settings shows how many active users do not), because they would otherwise be unable to sign in. Both are on by default. The setting is stored in the database, so it survives restarts and applies to every instance.
+
+**SMTP secret expiry:** `provision.sh` creates the Entra app secret with a **2-year** lifetime. Put a reminder on a shared team calendar for **1 month before it expires** (the date is shown in Entra ID > App registrations > `sp-<APP>-smtp` > Certificates & secrets). To renew, add a new secret there, put it in the `SMTP_PASS` environment variable of the web app, save and restart. If it is missed, emails fail (see **Settings > Email delivery** and **Email outbox**), voting and password sign-in keep working, and you can switch email off in Settings until it is fixed.
+
+**Limits:** ACS applies sending rate limits to new resources (enough for a few thousand messages a month). If a contest start email to everyone is held back, the portal retries it, and **Admin > Email outbox** shows what is waiting.
+
 ### 4. First sign-in and set-up
 
 1. Open the address, sign in with the first admin email and the temporary password, then change it (account menu > Change password).
@@ -103,7 +126,7 @@ PostgreSQL has been exercised mainly through SQLite so far, so this dry run on t
 ### 6. Go live
 
 - [ ] HTTPS works on the custom domain, `APP_URL` matches
-- [ ] SMTP sends real email and passes SPF/DKIM
+- [ ] Test email arrives (check the spam folder once); if it lands in spam, move to your own domain (see "Email")
 - [ ] All employees imported with a region, India on
 - [ ] HR admins added, bootstrap password removed
 - [ ] Backups confirmed (below), a restore tested
@@ -118,7 +141,7 @@ PostgreSQL has been exercised mainly through SQLite so far, so this dry run on t
 - **Scaling:** scale **up** the plan (B1 → B2 → P1v3, one command or a few clicks, no redeploy) if uploads or voting feel slow; scaling **out** to 2+ instances is supported because voting is decided by database constraints and `/home` is shared. Raise PostgreSQL to General Purpose if you see database CPU pressure in the last hour of a big contest.
 - **Updates:** run the three-step manual deploy above. Run `npm test` locally first. Migrations run automatically on start. Avoid deploying in the last hour of a live contest (a restart takes seconds and loses no votes).
 - **Staging:** create a second web app (or a deployment slot) with its own database for rehearsals; deploy to it with the same script.
-- **Secrets hygiene:** rotate the SMTP and database passwords yearly. Keep `APP_SECRET` as it is; changing it makes existing voter receipts unreadable (votes and results are unaffected).
+- **Secrets hygiene:** rotate the database password yearly, and renew the SMTP password (the Entra app client secret, valid 2 years) before it expires (see "SMTP secret expiry" above). Keep `APP_SECRET` as it is; changing it makes existing voter receipts unreadable (votes and results are unaffected).
 
 ## Security on Azure
 
@@ -139,7 +162,7 @@ Sized for the basic need: up to about 250 employees and up to 5 contests a month
 | --- | --- |
 | App Service B1 (Always On, HTTPS, custom domain, free certificate) | about 15 USD |
 | PostgreSQL Flexible B1ms + 32 GB storage, automated backups | about 15-20 USD |
-| Email (Microsoft 365 SMTP free; Azure Communication Services under 1 USD) | 0-1 USD |
+| Email (Azure Communication Services, pay per email, about 0.25 USD per 1,000) | about 1 USD or less |
 | Application Insights, backup storage | about 2-4 USD |
 | **Total** | **about 30-40 USD per month** |
 

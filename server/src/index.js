@@ -18,6 +18,7 @@ import fileRoutes from './routes/files.js';
 import adminContests from './routes/adminContests.js';
 import adminUsers from './routes/adminUsers.js';
 import adminReports from './routes/adminReports.js';
+import adminSettings from './routes/adminSettings.js';
 
 await migrate();
 await bootstrap();
@@ -54,7 +55,7 @@ app.get('/api/health', async (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/portal', portalRoutes);
 app.use('/api/files', fileRoutes);
-app.use('/api/admin', requireAdmin, adminContests, adminUsers, adminReports);
+app.use('/api/admin', requireAdmin, adminContests, adminUsers, adminReports, adminSettings);
 
 // Dev only: read the "emails" captured instead of sent, so sign-in codes can be tested without SMTP.
 if (config.mail.transport === 'dev' && !config.isProd) {

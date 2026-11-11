@@ -176,9 +176,18 @@ For each one you can edit the **subject** and **message**, insert details with t
 
 ## 9. Activity log
 
-Every admin action (contest created or changed, entries added or removed, contest started, deadline extended, voting closed, results published, downloads, users and regions changed) is recorded with **who** did it and **when**. It cannot be edited or deleted.
+Every admin action (contest created or changed, entries added or removed, contest started, deadline extended, voting closed, results published, downloads, users and regions changed, email switched on or off) is recorded with **who** did it and **when**. It cannot be edited or deleted.
 
-## 10. Quick launch checklist (under 30 minutes)
+## 10. Settings: switching email on or off
+
+**Settings** (side menu) has two switches. Both are on by default, and changes apply straight away.
+
+- **Email notifications**: contest started, "Your vote is in", results declared, reminders, deadline extended and test emails. When off, these emails are skipped (not saved for later), anything still waiting in the outbox is cancelled, and the **Send test** and **Reminder** buttons show a message instead. Voting, results and the portal are not affected.
+- **Email sign-in codes**: the 6-digit "Email code" sign-in. When off, the sign-in page shows the password option only. The switch warns you how many active people have no password, because they could not sign in.
+
+While either switch is off, a yellow bar at the top of every admin page reminds you. The page also shows whether email is live or in test mode, the sender address, and how many emails failed in the last 24 hours. If many fail at once, check the Email outbox and the deployment guide (the email password may have expired).
+
+## 11. Quick launch checklist (under 30 minutes)
 
 1. Users: make sure people and regions are up to date (import a spreadsheet if needed).
 2. Create the contest (or copy last month's).
@@ -203,4 +212,6 @@ Every admin action (contest created or changed, entries added or removed, contes
 | (HR) Start contest is greyed out | Open the Overview tab and finish the unticked checklist items. |
 | (HR) A region is missing in the contest form | Switch it on under Users & regions first. |
 | (HR) A document will not upload | Use `.pdf` or `.docx` (not older `.doc`), not password-protected, under 100 MB. |
-| (HR) Emails show "captured" | The portal is in test mode; set `MAIL_TRANSPORT=smtp` and SMTP settings to send real email. |
+| Sign-in page has no "Email code" option | HR switched email sign-in codes off in Settings. Use your password, or ask HR. |
+| (HR) Emails are not going out, no errors | Email notifications may be switched off in Settings (look for the yellow bar). |
+| (HR) Emails show "captured" | The portal is in test mode; set `MAIL_TRANSPORT=smtp` and the SMTP settings (in production these are set by `infra/provision.sh`, see the deployment guide). |

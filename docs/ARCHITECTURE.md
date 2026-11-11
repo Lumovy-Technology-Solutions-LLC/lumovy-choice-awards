@@ -11,7 +11,7 @@
 | Database | SQLite (better-sqlite3) for local and small deployments; PostgreSQL for production. Both through Knex migrations |
 | Auth | Email one-time code **or** password (bcrypt); JWT in an httpOnly cookie |
 | Files | Local disk (`UPLOAD_DIR`); processing with sharp (images), pdf-lib (PDF), JSZip (Word), mammoth (Word to HTML); optional ffmpeg for video |
-| Email | Nodemailer (SMTP) or a built-in dev mailbox, through a database-backed queue |
+| Email | Nodemailer (SMTP, Azure Communication Services in production) or a built-in dev mailbox, through a database-backed queue |
 | Excel | ExcelJS (import and export) |
 | Tests | Node's built-in test runner, end to end over HTTP |
 
@@ -62,7 +62,8 @@ One Node process serves the API and, in production, the built web app (`web/dist
 | `votes` | (contest, entry, rank, points). **No user reference** |
 | `ballot_drafts` | Saved-for-later picks, deleted on submit and at close |
 | `email_templates` | Per-contest wording overrides |
-| `outbox` | Every email: queued, sent/captured, failed |
+| `outbox` | Every email: queued, sent/captured, failed, cancelled |
+| `app_settings` | HR switches (email notifications, email sign-in codes), key and on/off value |
 | `audit_log` | Who did what and when |
 
 ## How voting works (server side)
@@ -83,7 +84,7 @@ One Node process serves the API and, in production, the built web app (`web/dist
 
 ## Email
 
-All emails go through the `outbox` table. A worker claims queued rows, sends them, and marks `sent`, or after 3 failures `failed`. This keeps a full-company send off the request path and survives restarts. `MAIL_TRANSPORT=dev` captures instead of sending, which is how the portal runs without SMTP.
+All emails go through the `outbox` table. A worker claims queued rows, sends them, and marks `sent`, or after 3 failures `failed`. This keeps a full-company send off the request path and survives restarts. `MAIL_TRANSPORT=dev` captures instead of sending, which is how the portal runs without SMTP. HR can also switch email off in **Admin > Settings**: `queue()` checks the `app_settings` flags and skips sign-in codes or notifications accordingly, and the sign-in page hides the email-code option.
 
 ## Scaling notes
 

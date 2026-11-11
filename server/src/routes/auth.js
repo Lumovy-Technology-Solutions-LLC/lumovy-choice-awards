@@ -6,6 +6,7 @@ import { db, nowIso } from '../db/index.js';
 import { config } from '../config.js';
 import { issueSession, clearSession, publicUser, requireAuth } from '../lib/auth.js';
 import { queue } from '../lib/mail.js';
+import { getFlags } from '../lib/settings.js';
 import { wrap, bad, normEmail, sha256, randomCode, HttpError } from '../lib/util.js';
 
 const r = Router();
@@ -16,6 +17,7 @@ const GENERIC_FAIL = 'That email or password is not right, or you are not on the
 // ---- one-time code ----
 r.post('/otp/request', limiter, wrap(async (req, res) => {
   const { email } = z.object({ email: z.string().min(3) }).parse(req.body);
+  if (!(await getFlags()).emailSignIn) throw new HttpError(403, 'Email codes are switched off right now. Sign in with your password, or ask HR for help.', 'email_off');
   const e = normEmail(email);
   const user = await db('users').where({ email: e }).first();
   // Same answer whether or not the email is eligible, so the list cannot be probed.
@@ -74,9 +76,9 @@ r.post('/login', limiter, wrap(async (req, res) => {
 
 r.post('/logout', (_req, res) => { clearSession(res); res.json({ ok: true }); });
 
-r.get('/me', (req, res) => {
-  res.json({ user: req.user ? publicUser(req.user) : null, mailMode: config.mail.transport, serverTime: nowIso() });
-});
+r.get('/me', wrap(async (req, res) => {
+  res.json({ user: req.user ? publicUser(req.user) : null, mailMode: config.mail.transport, emailSignIn: (await getFlags()).emailSignIn, serverTime: nowIso() });
+}));
 
 r.post('/password', requireAuth, limiter, wrap(async (req, res) => {
   const { current, password } = z.object({ current: z.string().optional(), password: z.string() }).parse(req.body);

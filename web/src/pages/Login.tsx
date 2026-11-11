@@ -6,8 +6,9 @@ import { Field, Logo, Spinner } from '../components/ui';
 import { Moon, Sun, SunMoon } from 'lucide-react';
 
 export default function Login() {
-  const { refresh } = useAuth();
-  const [mode, setMode] = useState<'otp' | 'password'>('otp');
+  const { refresh, emailSignIn } = useAuth();
+  const [picked, setMode] = useState<'otp' | 'password'>('otp');
+  const mode = emailSignIn ? picked : 'password'; // HR can switch email codes off in Settings
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
@@ -102,10 +103,12 @@ export default function Login() {
             <p className="hint" style={{ marginTop: 4, fontSize: 14 }}>Sign in with your Lumovy work email.</p>
           </div>
 
-          <div className="login-tabs" role="tablist">
-            <button role="tab" aria-selected={mode === 'otp'} onClick={() => { setMode('otp'); setError(''); }}>Email code</button>
-            <button role="tab" aria-selected={mode === 'password'} onClick={() => { setMode('password'); setError(''); }}>Password</button>
-          </div>
+          {emailSignIn && (
+            <div className="login-tabs" role="tablist">
+              <button role="tab" aria-selected={mode === 'otp'} onClick={() => { setMode('otp'); setError(''); }}>Email code</button>
+              <button role="tab" aria-selected={mode === 'password'} onClick={() => { setMode('password'); setError(''); }}>Password</button>
+            </div>
+          )}
 
           {mode === 'otp' && !sent && (
             <form className="form" onSubmit={requestCode} noValidate>
@@ -151,7 +154,9 @@ export default function Login() {
               </Field>
               {error && <div className="notice bad" role="alert">{error}</div>}
               <button className="btn btn-primary" disabled={busy || !email || !password}>{busy ? <Spinner /> : <Lock size={16} />} Sign in</button>
-              <p className="hint center">No password yet? Use the <button type="button" className="btn-link" onClick={() => setMode('otp')}>email code</button>, then set one from your account menu.</p>
+              {emailSignIn
+                ? <p className="hint center">No password yet? Use the <button type="button" className="btn-link" onClick={() => setMode('otp')}>email code</button>, then set one from your account menu.</p>
+                : <p className="hint center">Email codes are switched off right now. Ask HR if you do not have a password.</p>}
             </form>
           )}
 

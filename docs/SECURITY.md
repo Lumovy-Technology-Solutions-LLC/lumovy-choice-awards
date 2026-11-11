@@ -44,7 +44,7 @@
 1. Set a long random `APP_SECRET`. The server refuses to start in production with a default one.
 2. Change the bootstrap admin password on first sign-in; remove `BOOTSTRAP_ADMIN_PASSWORD` from the environment afterwards.
 3. Use PostgreSQL, HTTPS and a persistent volume (or object storage) for uploads.
-4. Configure SMTP with SPF/DKIM for the sender domain.
+4. Email goes through Azure Communication Services SMTP (an Entra app limited to the one ACS resource, no personal mailbox credentials). When sending from your own domain, verify it in ACS with SPF and DKIM.
 5. Back up the database and the upload folder together.
 6. Restrict who is an HR admin; review the activity log regularly.
 7. Keep Node and dependencies updated (`npm audit`).

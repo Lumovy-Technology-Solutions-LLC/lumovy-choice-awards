@@ -8,6 +8,7 @@ import { config } from '../config.js';
 import { audit } from '../lib/audit.js';
 import { getContest, closeContest, hydrate, contestShape, entryShape, isComplete, regionRecipients, resultsPayload } from '../lib/contests.js';
 import { processUpload, saveBanner, removeFiles, ENTRY_TYPES, typeForExt } from '../lib/files.js';
+import { getFlags } from '../lib/settings.js';
 import { queueTemplated, getTemplate, renderEmail, queue, TEMPLATE_META, TEMPLATE_KEYS, voteButton, resultsButton, listBlock } from '../lib/mail.js';
 import { tally } from '../lib/scoring.js';
 import { wrap, bad, notFound, conflict, localToUtcIso, formatDeadline, entryLabel } from '../lib/util.js';
@@ -389,10 +390,15 @@ function sampleVars(c, user, key) {
   };
 }
 
+async function requireEmailOn() {
+  if (!(await getFlags()).emailNotifications) throw conflict('Email notifications are switched off. Turn them on in Settings first.', 'email_off');
+}
+
 // A test email goes only to the admin who asks for it.
 r.post('/contests/:id/emails/:key/test', wrap(async (req, res) => {
   const c = await getContest(req.params.id);
   if (!TEMPLATE_META[req.params.key]) throw notFound();
+  await requireEmailOn();
   const b = z.object({ subject: z.string().optional(), body: z.string().optional() }).parse(req.body || {});
   const saved = await getTemplate(c.id, req.params.key);
   const msg = renderEmail({ subject: b.subject || saved.subject, body: b.body || saved.body }, { name: req.user.name, ...sampleVars(c, req.user, req.params.key) });
@@ -410,6 +416,7 @@ r.post('/contests/:id/emails/preview', wrap(async (req, res) => {
 r.post('/contests/:id/reminder', wrap(async (req, res) => {
   const c = await getContest(req.params.id);
   if (c.status !== 'live') throw conflict('Reminders can only be sent while voting is open.');
+  await requireEmailOn();
   const voted = new Set((await db('voter_status').where({ contest_id: c.id }).select('user_id')).map((v) => v.user_id));
   const todo = (await regionRecipients(c)).filter((u) => !voted.has(u.id));
   await queueTemplated({

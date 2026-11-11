@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import { config } from '../config.js';
 import { db, nowIso } from '../db/index.js';
+import { getFlags } from './settings.js';
 
 // ---------- default templates (HR can edit wording per contest) ----------
 export const TEMPLATE_META = {
@@ -134,6 +135,9 @@ export const listBlock = (items) => ({
 
 // ---------- queue ----------
 export async function queue(rows, trx = db) {
+  // HR can switch email off in Settings: sign-in codes and notifications are separate switches. Skipped emails are not stored.
+  const flags = await getFlags(trx);
+  rows = rows.filter((r) => (r.kind === 'otp' ? flags.emailSignIn : flags.emailNotifications));
   if (!rows.length) return 0;
   const created_at = nowIso();
   await trx.batchInsert('outbox', rows.map((r) => ({

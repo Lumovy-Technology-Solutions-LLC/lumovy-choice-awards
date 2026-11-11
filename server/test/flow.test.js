@@ -39,7 +39,11 @@ before(async () => {
   for (let i = 0; i < 160; i++) { try { if ((await fetch(base + '/api/health')).ok) break; } catch { /* wait */ } await new Promise((r) => setTimeout(r, 250)); }
   raw = knex({ client: 'better-sqlite3', connection: { filename: dbFile }, useNullAsDefault: true });
 });
-after(async () => { await raw?.destroy(); proc?.kill(); fs.rmSync(tmp, { recursive: true, force: true }); });
+after(async () => {
+  await raw?.destroy();
+  if (proc) await new Promise((resolve) => { proc.once('exit', resolve); proc.kill(); setTimeout(resolve, 3000); });
+  try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { /* Windows can keep the file a moment; the OS cleans the temp folder */ }
+});
 
 test('full contest lifecycle enforces the fairness rules', async () => {
   const admin = new Client();
@@ -166,4 +170,39 @@ test('full contest lifecycle enforces the fairness rules', async () => {
   const audit = await admin.get(`/api/admin/audit?contest=${id}`);
   const actions = audit.data.items.map((a) => a.action);
   for (const a of ['Contest started', 'Voting closed automatically', 'Results published', 'Entry added']) assert.ok(actions.includes(a), a);
+});
+
+test('HR can switch email off: sign-in codes and notifications are separate switches', async () => {
+  const admin = new Client();
+  assert.equal((await admin.post('/api/auth/login', { email: 'hr@test.com', password: 'TestPass!12345' })).status, 200);
+  const anon = new Client();
+  for (const x of ['z1', 'z2']) assert.equal((await admin.post('/api/admin/users', { name: `Person ${x}`, email: `${x}@test.com`, team: 'T', region: 'IN' })).status, 201);
+  const outboxCount = async () => Number((await raw('outbox').count({ n: '*' }).first()).n);
+
+  const s0 = await admin.get('/api/admin/settings');
+  assert.equal(s0.data.emailNotifications, true);
+  assert.equal(s0.data.emailSignIn, true);
+
+  // notifications off: test email refused, nothing queued
+  assert.equal((await admin.put('/api/admin/settings', { emailNotifications: false })).data.emailNotifications, false);
+  const before = await outboxCount();
+  assert.equal((await admin.post('/api/admin/contests/1/emails/contest_started/test', {})).status, 409);
+  assert.equal(await outboxCount(), before);
+  // sign-in codes still work while notifications are off
+  assert.equal((await anon.post('/api/auth/otp/request', { email: 'z1@test.com' })).status, 200);
+  assert.equal(await outboxCount(), before + 1);
+  assert.equal((await admin.put('/api/admin/settings', { emailNotifications: true })).data.emailNotifications, true);
+  assert.equal((await admin.post('/api/admin/contests/1/emails/contest_started/test', {})).status, 200);
+
+  // sign-in codes off: the request is refused and /me tells the login page to hide the option
+  await admin.put('/api/admin/settings', { emailSignIn: false });
+  assert.equal((await anon.post('/api/auth/otp/request', { email: 'z1@test.com' })).status, 403);
+  assert.equal((await anon.get('/api/auth/me')).data.emailSignIn, false);
+  assert.equal((await admin.post('/api/auth/login', { email: 'hr@test.com', password: 'TestPass!12345' })).status, 200, 'password sign-in still works');
+  await admin.put('/api/admin/settings', { emailSignIn: true });
+  assert.equal((await anon.get('/api/auth/me')).data.emailSignIn, true);
+
+  // only admins can change it
+  const emp = new Client(); await otpLogin(emp, 'z2@test.com');
+  assert.equal((await emp.put('/api/admin/settings', { emailNotifications: false })).status, 403);
 });

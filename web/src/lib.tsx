@@ -4,13 +4,13 @@ import { api } from './api';
 import type { User } from './types';
 
 // ---------- auth ----------
-interface AuthCtx { user: User | null; loading: boolean; mailMode: string; refresh: () => Promise<void>; signOut: () => Promise<void> }
+interface AuthCtx { user: User | null; loading: boolean; mailMode: string; emailSignIn: boolean; refresh: () => Promise<void>; signOut: () => Promise<void> }
 const Auth = createContext<AuthCtx>(null as any);
 export const useAuth = () => useContext(Auth);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['me'], queryFn: () => api.get<{ user: User | null; mailMode: string }>('/api/auth/me'), staleTime: 60_000, retry: false });
+  const q = useQuery({ queryKey: ['me'], queryFn: () => api.get<{ user: User | null; mailMode: string; emailSignIn: boolean }>('/api/auth/me'), staleTime: 60_000, retry: false });
   const refresh = useCallback(async () => { await qc.invalidateQueries({ queryKey: ['me'] }); }, [qc]);
   const signOut = useCallback(async () => {
     await api.post('/api/auth/logout');
@@ -22,7 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener('lcw:signed-out', h);
     return () => window.removeEventListener('lcw:signed-out', h);
   }, [qc]);
-  const v = useMemo(() => ({ user: q.data?.user ?? null, loading: q.isLoading, mailMode: q.data?.mailMode ?? 'dev', refresh, signOut }), [q.data, q.isLoading, refresh, signOut]);
+  const v = useMemo(() => ({ user: q.data?.user ?? null, loading: q.isLoading, mailMode: q.data?.mailMode ?? 'dev', emailSignIn: q.data?.emailSignIn ?? true, refresh, signOut }), [q.data, q.isLoading, refresh, signOut]);
   return <Auth.Provider value={v}>{children}</Auth.Provider>;
 }
 
