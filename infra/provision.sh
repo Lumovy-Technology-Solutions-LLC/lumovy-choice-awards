@@ -72,6 +72,8 @@ else
   mapfile -t SP < <(az ad sp create-for-rbac --name "$SP_NAME" --role "Communication and Email Service Owner" \
     --scopes "$ACS_ID" --years 2 --query "[appId,password,tenant]" -o tsv)
 fi
+# Make sure the app may send through this ACS resource (create-for-rbac can silently skip it). Safe to repeat.
+az role assignment create --assignee-object-id "$(az ad sp show --id "${SP[0]}" --query id -o tsv)" --assignee-principal-type ServicePrincipal   --role "Communication and Email Service Owner" --scope "$ACS_ID" -o none
 SMTP_HOST="smtp.azurecomm.net"; SMTP_PORT=587
 SMTP_USER="${ACS}.${SP[0]}.${SP[2]}"
 SMTP_PASS="${SP[1]}"
@@ -101,6 +103,8 @@ az webapp config appsettings set -g "$RG" -n "$APP" -o none --settings \
   MAIL_TRANSPORT=smtp MAIL_FROM="$MAIL_FROM" \
   SMTP_HOST="$SMTP_HOST" SMTP_PORT="$SMTP_PORT" SMTP_USER="$SMTP_USER" SMTP_PASS="$SMTP_PASS" \
   BOOTSTRAP_ADMIN_EMAIL="$ADMIN_EMAIL" BOOTSTRAP_ADMIN_NAME="$ADMIN_NAME" BOOTSTRAP_ADMIN_PASSWORD="$ADMIN_TEMP_PASSWORD"
+# Switching from PostgreSQL to SQLite on a rerun: a leftover DATABASE_URL would make the app ignore SQLite.
+if [ "$DB" = sqlite ]; then az webapp config appsettings delete -g "$RG" -n "$APP" --setting-names DATABASE_URL -o none; fi
 
 cat <<EOF
 
