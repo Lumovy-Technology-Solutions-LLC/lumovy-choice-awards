@@ -64,20 +64,29 @@ ACS_ID="$(az communication show -n "$ACS" -g "$RG" --query id -o tsv)"
 
 # SMTP sign-in for ACS is an Entra app (service principal) that may send email through this ACS resource only.
 # Needs permission to create app registrations in your tenant; if this fails, see docs/DEPLOYMENT.md (manual steps).
-mapfile -t SP < <(az ad sp create-for-rbac --name "sp-$APP-smtp" --role "Communication and Email Service Owner" \
-  --scopes "$ACS_ID" --years 2 --query "[appId,password,tenant]" -o tsv)
+SP_NAME="sp-$APP-smtp"
+SP_ID="$(az ad sp list --display-name "$SP_NAME" --query "[0].appId" -o tsv)"
+if [ -n "$SP_ID" ]; then   # rerun: keep the same app, just issue a fresh secret
+  mapfile -t SP < <(az ad sp credential reset --id "$SP_ID" --years 2 --query "[appId,password,tenant]" -o tsv)
+else
+  mapfile -t SP < <(az ad sp create-for-rbac --name "$SP_NAME" --role "Communication and Email Service Owner" \
+    --scopes "$ACS_ID" --years 2 --query "[appId,password,tenant]" -o tsv)
+fi
 SMTP_HOST="smtp.azurecomm.net"; SMTP_PORT=587
 SMTP_USER="${ACS}.${SP[0]}.${SP[2]}"
 SMTP_PASS="${SP[1]}"
 MAIL_FROM="${MAIL_NAME} <DoNotReply@${MAIL_DOMAIN}>"
 
 echo "Creating App Service..."
-az appservice plan create -g "$RG" -n "$PLAN" --is-linux --sku "$SKU" -o none
-az webapp create -g "$RG" -p "$PLAN" -n "$APP" --runtime "NODE:22-lts" -o none
+az appservice plan show -g "$RG" -n "$PLAN" -o none 2>/dev/null || az appservice plan create -g "$RG" -n "$PLAN" --is-linux --sku "$SKU" -o none
+az webapp show -g "$RG" -n "$APP" -o none 2>/dev/null || az webapp create -g "$RG" -p "$PLAN" -n "$APP" --runtime "NODE:22-lts" -o none
 az webapp update -g "$RG" -n "$APP" --https-only true -o none
 az webapp config set -g "$RG" -n "$APP" \
   --startup-file "node server/src/index.js" --always-on true \
-  --health-check-path "/api/health" --min-tls-version 1.2 --ftps-state Disabled -o none
+  --min-tls-version 1.2 --ftps-state Disabled -o none
+# Health check: restarts an unhealthy instance. Not fatal if this CLI version cannot set it (set it in the portal: App Service > Health check).
+az webapp config set -g "$RG" -n "$APP" --generic-configurations '{"healthCheckPath": "/api/health"}' -o none \
+  || echo "NOTE: could not set the health check path automatically. Optional: set /api/health in App Service > Health check."
 
 # /home is persistent, shared storage on Linux App Service. Uploads and temp files live there.
 az webapp config appsettings set -g "$RG" -n "$APP" -o none --settings \
