@@ -15,9 +15,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     const prev = qc.getQueryData<any>(['me']);
     try { await api.post('/api/auth/logout'); } catch { /* cookie may already be gone */ }
-    qc.clear();
-    // Set the signed-out state directly (clear() drops the query, so invalidating would do nothing).
+    // Flip to signed-out first so the login screen shows at once, then drop everything else cached.
+    // (Never qc.clear(): it detaches the live 'me' query, so the screen would not update.)
     qc.setQueryData(['me'], { mailMode: prev?.mailMode ?? 'dev', emailSignIn: prev?.emailSignIn ?? true, user: null });
+    await qc.cancelQueries({ predicate: (q) => q.queryKey[0] !== 'me' });
+    qc.removeQueries({ predicate: (q) => q.queryKey[0] !== 'me' });
   }, [qc]);
   useEffect(() => {
     const h = () => { qc.setQueryData(['me'], (d: any) => ({ ...d, user: null })); };
