@@ -16,7 +16,7 @@ PG="pg-choice-awards"                    # PostgreSQL server name (globally uniq
 PG_ADMIN="choiceadmin"
 PG_PASS="$(openssl rand -base64 24 | tr -d '=+/')"   # generated; stored in App Settings below
 APP_SECRET="$(openssl rand -hex 48)"
-CUSTOM_URL="https://choice.lumovy.com"   # public address you will map (or use https://$APP.azurewebsites.net first)
+CUSTOM_URL="https://lumovychoiceawards.com"   # public address you will map (or use https://$APP.azurewebsites.net first)
 ADMIN_EMAIL="<first HR admin email>"
 ADMIN_NAME="HR Admin"
 ADMIN_TEMP_PASSWORD="$(openssl rand -base64 18 | tr -d '=+/')A1!"
