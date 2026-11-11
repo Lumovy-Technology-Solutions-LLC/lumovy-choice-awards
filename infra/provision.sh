@@ -92,7 +92,7 @@ az webapp config set -g "$RG" -n "$APP" --generic-configurations '{"healthCheckP
 az webapp config appsettings set -g "$RG" -n "$APP" -o none --settings \
   NODE_ENV=production \
   WEBSITES_ENABLE_APP_SERVICE_STORAGE=true \
-  SCM_DO_BUILD_DURING_DEPLOYMENT=true \
+  SCM_DO_BUILD_DURING_DEPLOYMENT=false \
   APP_URL="$CUSTOM_URL" \
   APP_SECRET="$APP_SECRET" \
   "${DB_SETTINGS[@]}" \

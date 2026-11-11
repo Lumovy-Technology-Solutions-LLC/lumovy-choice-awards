@@ -7,3 +7,5 @@ _proto/
 *.log
 .DS_Store
 *.tsbuildinfo
+deploy.zip
+deploy-azure.zip
