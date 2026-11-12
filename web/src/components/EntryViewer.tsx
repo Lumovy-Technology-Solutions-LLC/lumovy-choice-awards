@@ -35,6 +35,8 @@ function DocxView({ entry }: { entry: Entry }) {
       const doc = new DOMParser().parseFromString(r.html, 'text/html');
       doc.querySelectorAll('script,iframe,object,embed,link,style').forEach((n) => n.remove());
       doc.querySelectorAll('*').forEach((n) => [...n.attributes].forEach((a) => { if (/^on/i.test(a.name) || (a.name === 'href' && /^javascript:/i.test(a.value))) n.removeAttribute(a.name); }));
+      // Links inside an entry must not be clickable: they could leave the portal or hint at who wrote it.
+      doc.querySelectorAll('a').forEach((a) => { const s = doc.createElement('span'); s.innerHTML = a.innerHTML; a.replaceWith(s); });
       setHtml(doc.body.innerHTML);
     }).catch(() => live && setErr('This document could not be opened.'));
     return () => { live = false; };
