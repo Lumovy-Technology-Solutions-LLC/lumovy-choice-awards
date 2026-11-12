@@ -104,7 +104,6 @@ Open the contest and go to **Entries**. Employees send their work to HR outside 
   - **Title** and **Short description**. These are shown to voters. Do **not** name the entrant here.
   - **Competitor's name**. Saved against the entry and **hidden from voters everywhere** until you publish.
   - **Image description (alt text)** for photos, read aloud by screen readers.
-- **Bulk upload**: drop many files at once. Each becomes one entry. File names are never used as titles (they may contain names). The portal then walks you through each entry that still needs a title, description and competitor name.
 - **Edit** or **remove** an entry any time **before you start the contest**. After that, entries are locked.
 - Each entry gets a permanent number (Entry 01, 02, ...). A removed entry's number is not reused.
 - The portal automatically removes hidden file details (author, camera, GPS, company).

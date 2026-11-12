@@ -293,38 +293,6 @@ r.post('/contests/:id/entries', upload.single('file'), wrap(async (req, res) => 
   } finally { cleanup(req.file); }
 }));
 
-r.post('/contests/:id/entries/bulk', upload.array('files', 100), wrap(async (req, res) => {
-  const files = req.files || [];
-  try {
-    const c = await getContest(req.params.id);
-    await assertDraft(c);
-    if (!files.length) throw bad('Choose at least one file.');
-    const created = []; const failed = [];
-    for (const file of files) {
-      let info;
-      try {
-        info = await processUpload({ tmpPath: file.path, originalName: file.originalname, contestId: c.id, allowedTypes: c.entry_types });
-        const now = nowIso();
-        await db.transaction(async (t) => {
-          const number = await nextNumber(t, c.id);
-          // The file name may identify the entrant, so it is never used as the title.
-          await t('entries').insert({
-            contest_id: c.id, number, type: info.type, title: '', description: '', alt_text: '',
-            file_key: info.file_key, thumb_key: info.thumb_key ?? null, mime: info.mime, ext: info.ext, size: info.size,
-            page_count: info.page_count ?? null, competitor_name: '', created_at: now, updated_at: now,
-          });
-          created.push(number);
-        });
-      } catch (e) {
-        if (info) removeFiles(info.file_key, info.thumb_key);
-        failed.push({ file: file.originalname, error: e.message });
-      }
-    }
-    await audit(req.user, 'Bulk entries added', c.id, { count: created.length, failed: failed.length });
-    res.status(201).json({ created: created.length, failed });
-  } finally { cleanup(files); }
-}));
-
 r.put('/entries/:entryId', upload.single('file'), wrap(async (req, res) => {
   try {
     const e = await db('entries').where({ id: Number(req.params.entryId) }).first();

@@ -27,7 +27,7 @@
 
 ## File handling
 
-- Allow-list of extensions per entry type, validated by content (images are decoded, PDFs and Word files are parsed), size limit 100 MB, up to 100 files per bulk upload.
+- Allow-list of extensions per entry type, validated by content (images are decoded, PDFs and Word files are parsed), size limit 100 MB.
 - Metadata removal: images are re-encoded (EXIF, GPS, camera and author fields are dropped); PDFs have author, title, creator and XMP removed; Word files have creator, last editor, company and tracked-change authors blanked; videos are stripped when `ffmpeg` is installed.
 - Files are stored under random names, served with `nosniff`, as `Entry NN.ext`, and only through authenticated endpoints.
 - Word documents are shown as converted HTML after a script/attribute sanitiser; PDFs are rendered to canvas.

@@ -85,47 +85,10 @@ function EntryEditor({ c, entry, onClose, onSaved }: { c: Contest; entry: Entry 
   );
 }
 
-function BulkModal({ c, onClose, onDone }: { c: Contest; onClose: () => void; onDone: () => void }) {
-  const toast = useToast();
-  const ref = useRef<HTMLInputElement>(null);
-  const [files, setFiles] = useState<File[]>([]);
-  const [over, setOver] = useState(false);
-  const [result, setResult] = useState<{ created: number; failed: { file: string; error: string }[] } | null>(null);
-  const accept = c.entryTypes.filter((t) => t !== 'writing').map((t) => ACCEPT[t]).join(',');
-  const m = useMutation({
-    mutationFn: async () => { const fd = new FormData(); files.forEach((f) => fd.append('files', f)); return api.upload<{ created: number; failed: { file: string; error: string }[] }>('POST', `/api/admin/contests/${c.id}/entries/bulk`, fd); },
-    onSuccess: (r) => { setResult(r); onDone(); if (!r.failed.length) toast(`${r.created} entries added. Fill in a title, description and name for each.`); },
-    onError: (e) => toast(errMsg(e), 'error'),
-  });
-  const add = (list: FileList | null) => list && setFiles((f) => [...f, ...Array.from(list)]);
-  return (
-    <Modal wide title="Bulk upload" onClose={onClose} footer={result ? <button className="btn btn-primary" onClick={onClose}>Done</button> : <><button className="btn btn-ghost" onClick={onClose}>Cancel</button><button className="btn btn-primary" disabled={!files.length || m.isPending} onClick={() => m.mutate()}>{m.isPending ? <Spinner /> : <Upload size={15} />} Upload {files.length || ''} {files.length === 1 ? 'file' : 'files'}</button></>}>
-      {result ? (
-        <div className="stack">
-          <div className="notice good">{result.created} entries added. Next, open each one to add its title, description and competitor name.</div>
-          {result.failed.length > 0 && <div className="notice bad" style={{ display: 'block' }}><b>{result.failed.length} could not be added:</b><ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>{result.failed.map((f) => <li key={f.file}>{f.file}: {f.error}</li>)}</ul></div>}
-        </div>
-      ) : (
-        <div className="stack">
-          <p className="hint">One file = one entry. Each file gets its own entry number automatically. File names are never shown to voters or used as titles.</p>
-          <div className={`drop big ${over ? 'over' : ''}`} onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)} onDrop={(e) => { e.preventDefault(); setOver(false); add(e.dataTransfer.files); }} onClick={() => ref.current?.click()} role="button" tabIndex={0} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && ref.current?.click()}>
-            <input ref={ref} type="file" multiple hidden accept={accept} onChange={(e) => add(e.target.files)} />
-            <UploadCloud size={36} color="var(--brand)" /><b style={{ fontWeight: 500 }}>Drop many files here, or click to choose</b>
-          </div>
-          {files.length > 0 && <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 6, maxHeight: 220, overflow: 'auto' }}>{files.map((f, i) => <li key={i} className="row between" style={{ fontSize: 13, padding: '6px 10px', border: '1px solid var(--line)', borderRadius: 10 }}><span className="grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span><span className="muted">{fmtSize(f.size)}</span><button className="btn-link" onClick={() => setFiles(files.filter((_, k) => k !== i))} aria-label={`Remove ${f.name}`}>Remove</button></li>)}</ul>}
-          {m.isPending && <div className="progress" role="progressbar" aria-label="Uploading"><i style={{ width: '60%' }} /></div>}
-        </div>
-      )}
-    </Modal>
-  );
-}
-
 export default function EntriesTab({ c }: { c: Contest }) {
   const qc = useQueryClient(); const toast = useToast();
   const [confirm, confirmNode] = useConfirm();
   const [editing, setEditing] = useState<Entry | 'new' | null>(null);
-  const [bulk, setBulk] = useState(false);
-  const [flow, setFlow] = useState(false); // after a bulk upload, step through entries that still need details
   const q = useQuery({ queryKey: ['admin-entries', c.id], queryFn: () => api.get<{ locked: boolean; entries: Entry[] }>(`/api/admin/contests/${c.id}/entries`) });
   const refresh = () => { qc.invalidateQueries({ queryKey: ['admin-entries', c.id] }); qc.invalidateQueries({ queryKey: ['admin-contest', String(c.id)] }); };
   const del = useMutation({ mutationFn: (id: number) => api.del(`/api/admin/entries/${id}`), onSuccess: () => { refresh(); toast('Entry removed.'); }, onError: (e) => toast(errMsg(e), 'error') });
@@ -144,7 +107,6 @@ export default function EntriesTab({ c }: { c: Contest }) {
         <div className="row">
           <Link className="btn btn-ghost btn-sm" to={`/admin/contests/${c.id}/preview`}><Eye size={15} /> See it as an employee</Link>
           {!locked && <>
-            {c.entryTypes.some((t) => t !== 'writing') && <button className="btn btn-ghost btn-sm" onClick={() => setBulk(true)}><UploadCloud size={15} /> Bulk upload</button>}
             <button className="btn btn-primary btn-sm" onClick={() => setEditing('new')}><Plus size={15} /> Add entry</button>
           </>}
         </div>
@@ -152,7 +114,7 @@ export default function EntriesTab({ c }: { c: Contest }) {
 
       {entries.length === 0 ? (
         <Empty icon={<UploadCloud size={32} />} title="No entries yet" action={!locked ? <button className="btn btn-primary" onClick={() => setEditing('new')}><Plus size={15} /> Add the first entry</button> : undefined}>
-          Employees send their entries to HR. Upload them here, one at a time or many at once. Each gets a permanent entry number.
+          Employees send their entries to HR. Upload them here, one at a time. Each gets a permanent entry number.
         </Empty>
       ) : (
         <div className="stack" style={{ gap: 10 }}>
@@ -179,19 +141,8 @@ export default function EntriesTab({ c }: { c: Contest }) {
         </div>
       )}
 
-      {editing && <EntryEditor key={editing === 'new' ? 'new' : editing.id} c={c} entry={editing === 'new' ? null : editing} onClose={() => { setEditing(null); setFlow(false); }}
-        onSaved={async (id) => {
-          setEditing(null);
-          const fresh = await qc.fetchQuery({ queryKey: ['admin-entries', c.id], queryFn: () => api.get<{ locked: boolean; entries: Entry[] }>(`/api/admin/contests/${c.id}/entries`), staleTime: 0 });
-          qc.invalidateQueries({ queryKey: ['admin-contest', String(c.id)] });
-          if (flow) { const n = fresh.entries.find((e) => (!e.complete || !e.competitorName?.trim()) && e.id !== id); if (n) setEditing(n); else setFlow(false); }
-        }} />}
-      {bulk && <BulkModal c={c} onClose={async () => {
-        setBulk(false);
-        const fresh = await qc.fetchQuery({ queryKey: ['admin-entries', c.id], queryFn: () => api.get<{ locked: boolean; entries: Entry[] }>(`/api/admin/contests/${c.id}/entries`), staleTime: 0 });
-        const n = fresh.entries.find((e) => !e.complete || !e.competitorName?.trim());
-        if (n) { setFlow(true); setEditing(n); }
-      }} onDone={refresh} />}
+      {editing && <EntryEditor key={editing === 'new' ? 'new' : editing.id} c={c} entry={editing === 'new' ? null : editing} onClose={() => setEditing(null)}
+        onSaved={() => { setEditing(null); refresh(); }} />}
       {confirmNode}
     </div>
   );

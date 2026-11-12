@@ -182,4 +182,4 @@ Sized for the basic need: up to about 250 employees and up to 5 contests a month
 | **Total (SQLite)** | **about 18-22 USD per month** |
 | **Total (with PostgreSQL)** | **about 33-42 USD per month** |
 
-Options: B2 (about 30 USD) gives more headroom for bulk uploads and big deadline rushes, so the total is about 50 USD. A 1-year reservation lowers the price by roughly 30-40%. A staging app is optional; create it only for dry runs and delete it afterwards. Azure Front Door with WAF is not needed at this size. Check the Azure pricing calculator for current numbers.
+Options: B2 (about 30 USD) gives more headroom for large uploads and big deadline rushes, so the total is about 50 USD. A 1-year reservation lowers the price by roughly 30-40%. A staging app is optional; create it only for dry runs and delete it afterwards. Azure Front Door with WAF is not needed at this size. Check the Azure pricing calculator for current numbers.
