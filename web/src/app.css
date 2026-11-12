@@ -105,7 +105,7 @@ a:hover{text-decoration:underline}
 .reading h2{font-size:24px;margin-bottom:6px}
 .reading .body{white-space:pre-wrap;max-width:62ch;margin:18px auto 0}
 .docv-canvas{display:block;max-width:none;box-shadow:0 14px 30px -12px rgba(0,0,0,.5);background:#fff}
-.docx-page{background:#fff;color:#1d1f33;width:min(100%,calc(720px*var(--z,1)));padding:calc(48px*var(--z,1));box-shadow:0 14px 30px -12px rgba(0,0,0,.5);font-size:calc(14px*var(--z,1));line-height:1.7;overflow-wrap:anywhere;margin:0 auto}
+.docx-page{background:#fff;color:#1d1f33;width:min(100%,calc(720px*var(--z,1)));padding:calc(48px*var(--z,1));box-shadow:0 14px 30px -12px rgba(0,0,0,.5);font-size:calc(14px*var(--z,1));line-height:1.7;overflow-wrap:anywhere;margin:0 auto;align-self:flex-start;flex:none;box-sizing:border-box}
 .docx-page img{max-width:100%;height:auto}
 .docx-page table{min-width:0;font-size:inherit}
 .docx-page td,.docx-page th{padding:6px 8px;border:1px solid #ddd;background:none;color:inherit;font-size:inherit;letter-spacing:0;text-transform:none}
