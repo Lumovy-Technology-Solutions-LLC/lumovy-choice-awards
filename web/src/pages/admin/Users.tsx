@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, FileSpreadsheet, Globe2, Pencil, Plus, Search, ShieldCheck, Upload, UploadCloud, UserPlus } from 'lucide-react';
+import { Download, FileSpreadsheet, Globe2, Pencil, Plus, Search, ShieldCheck, Trash2, Upload, UploadCloud, UserPlus, X } from 'lucide-react';
 import { api } from '../../api';
 import { ago, errMsg, useToast } from '../../lib';
-import { Empty, ErrorState, Field, Modal, PageLoader, Spinner, Switch, Tabs } from '../../components/ui';
+import { Empty, ErrorState, Field, Modal, PageLoader, Spinner, Switch, Tabs, useConfirm } from '../../components/ui';
 
 interface U { id: number; name: string; email: string; team: string; region: string; role: 'employee' | 'admin'; active: boolean; hasPassword: boolean; lastLoginAt: string | null }
+interface BulkResult { deleted: number; skipped: { id: number | string; name: string; reason: string }[] }
 interface Region { code: string; name: string; timezone: string; enabled: boolean; employees: number }
 
 function UserModal({ user, regions, onClose, onSaved }: { user: U | null; regions: Region[]; onClose: () => void; onSaved: () => void }) {
@@ -77,25 +78,61 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
   );
 }
 
+function SelectionBar({ count, noun, busy, onDelete, onClear }: { count: number; noun: string; busy: boolean; onDelete: () => void; onClear: () => void }) {
+  if (!count) return null;
+  return (
+    <div className="notice" role="status" style={{ alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+      <span><b>{count}</b> {noun} selected</span>
+      <span className="row" style={{ gap: 8 }}>
+        <button className="btn btn-ghost btn-sm" onClick={onClear}><X size={14} /> Clear</button>
+        <button className="btn btn-danger btn-sm" disabled={busy} onClick={onDelete}>{busy ? <Spinner /> : <Trash2 size={14} />} Delete selected</button>
+      </span>
+    </div>
+  );
+}
+
+function SkippedNotice({ r, noun, onClose }: { r: BulkResult; noun: string; onClose: () => void }) {
+  if (!r.skipped.length) return null;
+  return (
+    <div className="notice warn" style={{ display: 'block' }} role="status">
+      <div className="row between"><b>{r.deleted} deleted, {r.skipped.length} kept:</b><button className="btn-link" onClick={onClose}>Dismiss</button></div>
+      <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>{r.skipped.slice(0, 20).map((x) => <li key={x.id}>{x.name}: {x.reason}</li>)}</ul>
+      {r.skipped.length > 20 && <div className="hint">and {r.skipped.length - 20} more {noun}.</div>}
+    </div>
+  );
+}
+
 function Regions() {
   const qc = useQueryClient(); const toast = useToast();
   const q = useQuery({ queryKey: ['admin-regions'], queryFn: () => api.get<{ regions: Region[] }>('/api/admin/regions') });
   const [code, setCode] = useState(''); const [name, setName] = useState('');
+  const [sel, setSel] = useState<string[]>([]); const [skipped, setSkipped] = useState<BulkResult | null>(null);
+  const [confirm, confirmNode] = useConfirm();
   const refresh = () => qc.invalidateQueries({ queryKey: ['admin-regions'] });
   const toggle = useMutation({ mutationFn: (r: Region) => api.put(`/api/admin/regions/${r.code}`, { enabled: !r.enabled }), onSuccess: refresh, onError: (e) => toast(errMsg(e), 'error') });
   const add = useMutation({ mutationFn: () => api.post('/api/admin/regions', { code, name }), onSuccess: () => { setCode(''); setName(''); refresh(); toast('Region added. Switch it on when you are ready.'); }, onError: (e) => toast(errMsg(e), 'error') });
+  const del = useMutation({
+    mutationFn: (codes: string[]) => api.post<BulkResult>('/api/admin/regions/bulk-delete', { codes }),
+    onSuccess: (r) => { setSel([]); setSkipped(r); refresh(); if (r.deleted) toast(`${r.deleted} ${r.deleted === 1 ? 'region' : 'regions'} deleted.`); },
+    onError: (e) => toast(errMsg(e), 'error'),
+  });
   if (q.isLoading) return <PageLoader />;
+  const all = q.data!.regions;
+  const askDelete = async () => { if (await confirm({ title: `Delete ${sel.length} ${sel.length === 1 ? 'region' : 'regions'}?`, danger: true, confirm: 'Delete', body: 'This cannot be undone. A region that still has people or is used by a contest is kept.' })) del.mutate(sel); };
   return (
     <div className="stack">
       <div className="notice"><Globe2 size={16} style={{ flex: 'none', marginTop: 2 }} /> Each contest is set to one or more regions. Only active employees in those regions can vote and get its emails. At launch only India is switched on.</div>
-      <div className="table-wrap"><table><thead><tr><th>Region</th><th>Code</th><th className="right">Active employees</th><th className="right">Switched on</th></tr></thead>
-        <tbody>{q.data!.regions.map((r) => <tr key={r.code}><td><b style={{ fontWeight: 500 }}>{r.name}</b></td><td><span className="badge">{r.code}</span></td><td className="right num">{r.employees}</td><td className="right"><Switch checked={r.enabled} onChange={() => toggle.mutate(r)} label={`${r.name} switched on`} /></td></tr>)}</tbody></table></div>
+      <SelectionBar count={sel.length} noun={sel.length === 1 ? 'region' : 'regions'} busy={del.isPending} onDelete={askDelete} onClear={() => setSel([])} />
+      {skipped && <SkippedNotice r={skipped} noun="regions" onClose={() => setSkipped(null)} />}
+      <div className="table-wrap"><table><thead><tr><th style={{ width: 36 }}><input type="checkbox" aria-label="Select all regions" checked={all.length > 0 && sel.length === all.length} onChange={(e) => setSel(e.target.checked ? all.map((r) => r.code) : [])} /></th><th>Region</th><th>Code</th><th className="right">Active employees</th><th className="right">Switched on</th></tr></thead>
+        <tbody>{all.map((r) => <tr key={r.code}><td><input type="checkbox" aria-label={`Select ${r.name}`} checked={sel.includes(r.code)} onChange={(e) => setSel(e.target.checked ? [...sel, r.code] : sel.filter((c) => c !== r.code))} /></td><td><b style={{ fontWeight: 500 }}>{r.name}</b></td><td><span className="badge">{r.code}</span></td><td className="right num">{r.employees}</td><td className="right"><Switch checked={r.enabled} onChange={() => toggle.mutate(r)} label={`${r.name} switched on`} /></td></tr>)}</tbody></table></div>
       <div className="card"><div className="card-h"><h3>Add a region</h3></div>
         <div className="row" style={{ alignItems: 'flex-end' }}>
           <Field label="Code" htmlFor="rc"><input id="rc" className="input" style={{ width: 100 }} maxLength={4} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="SG" /></Field>
           <Field label="Name" htmlFor="rn"><input id="rn" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Singapore" /></Field>
           <button className="btn btn-primary" disabled={!code || !name || add.isPending} onClick={() => add.mutate()}><Plus size={15} /> Add</button>
         </div></div>
+      {confirmNode}
     </div>
   );
 }
@@ -106,12 +143,21 @@ export default function Users() {
   const [q, setQ] = useState(''); const [dq, setDq] = useState('');
   const [region, setRegion] = useState(''); const [status, setStatus] = useState(''); const [role, setRole] = useState(''); const [page, setPage] = useState(1);
   const [edit, setEdit] = useState<U | 'new' | null>(null); const [imp, setImp] = useState(false);
+  const [sel, setSel] = useState<number[]>([]); const [skipped, setSkipped] = useState<BulkResult | null>(null);
+  const [confirm, confirmNode] = useConfirm();
   useEffect(() => { const t = setTimeout(() => { setDq(q); setPage(1); }, 300); return () => clearTimeout(t); }, [q]);
   const regionsQ = useQuery({ queryKey: ['admin-regions'], queryFn: () => api.get<{ regions: Region[] }>('/api/admin/regions') });
   const list = useQuery({ queryKey: ['admin-users', dq, region, status, role, page], placeholderData: keepPreviousData, queryFn: () => api.get<{ total: number; pageSize: number; users: U[]; totals: { active: number; inactive: number; admins: number } }>(`/api/admin/users?q=${encodeURIComponent(dq)}&region=${region}&status=${status}&role=${role}&page=${page}`) });
   const refresh = () => { qc.invalidateQueries({ queryKey: ['admin-users'] }); qc.invalidateQueries({ queryKey: ['admin-regions'] }); };
   const toggleActive = useMutation({ mutationFn: (u: U) => api.put(`/api/admin/users/${u.id}`, { active: !u.active }), onSuccess: refresh, onError: (e) => toast(errMsg(e), 'error') });
   const regions = regionsQ.data?.regions ?? [];
+  const del = useMutation({
+    mutationFn: (ids: number[]) => api.post<BulkResult>('/api/admin/users/bulk-delete', { ids }),
+    onSuccess: (r) => { setSel([]); setSkipped(r); refresh(); if (r.deleted) toast(`${r.deleted} ${r.deleted === 1 ? 'person' : 'people'} deleted.`); },
+    onError: (e) => toast(errMsg(e), 'error'),
+  });
+  const askDelete = async () => { if (await confirm({ title: `Delete ${sel.length} ${sel.length === 1 ? 'person' : 'people'}?`, danger: true, confirm: 'Delete', body: 'They are removed for good and can no longer sign in. Anyone who has already voted, you, and the last HR admin are kept. To stop someone voting but keep their history, switch them off instead.' })) del.mutate(sel); };
+  const resetSel = () => { setSel([]); setSkipped(null); };
 
   return (
     <>
@@ -123,19 +169,22 @@ export default function Users() {
       {tab === 'regions' ? <Regions /> : (
         <>
           <div className="toolbar">
-            <div className="search"><Search size={16} /><input className="input" placeholder="Search name, email or team" aria-label="Search people" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-            <select className="input" aria-label="Region" value={region} onChange={(e) => { setRegion(e.target.value); setPage(1); }}><option value="">All regions</option>{regions.map((r) => <option key={r.code} value={r.code}>{r.name}</option>)}</select>
-            <select className="input" aria-label="Status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}><option value="">Active and inactive</option><option value="active">Active</option><option value="inactive">Switched off</option></select>
-            <select className="input" aria-label="Role" value={role} onChange={(e) => { setRole(e.target.value); setPage(1); }}><option value="">Everyone</option><option value="admin">HR admins</option><option value="employee">Employees</option></select>
+            <div className="search"><Search size={16} /><input className="input" placeholder="Search name, email or team" aria-label="Search people" value={q} onChange={(e) => { setQ(e.target.value); resetSel(); }} /></div>
+            <select className="input" aria-label="Region" value={region} onChange={(e) => { setRegion(e.target.value); setPage(1); resetSel(); }}><option value="">All regions</option>{regions.map((r) => <option key={r.code} value={r.code}>{r.name}</option>)}</select>
+            <select className="input" aria-label="Status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); resetSel(); }}><option value="">Active and inactive</option><option value="active">Active</option><option value="inactive">Switched off</option></select>
+            <select className="input" aria-label="Role" value={role} onChange={(e) => { setRole(e.target.value); setPage(1); resetSel(); }}><option value="">Everyone</option><option value="admin">HR admins</option><option value="employee">Employees</option></select>
           </div>
+          <SelectionBar count={sel.length} noun={sel.length === 1 ? 'person' : 'people'} busy={del.isPending} onDelete={askDelete} onClear={() => setSel([])} />
+          {skipped && <SkippedNotice r={skipped} noun="people" onClose={() => setSkipped(null)} />}
           {list.isLoading ? <PageLoader /> : list.isError ? <ErrorState error={list.error} retry={() => list.refetch()} /> : (
             <>
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>Name</th><th>Team</th><th>Region</th><th>Last sign-in</th><th className="right">Active</th><th /></tr></thead>
+                  <thead><tr><th style={{ width: 36 }}><input type="checkbox" aria-label="Select everyone on this page" checked={list.data!.users.length > 0 && list.data!.users.every((u) => sel.includes(u.id))} onChange={(e) => setSel(e.target.checked ? list.data!.users.map((u) => u.id) : [])} /></th><th>Name</th><th>Team</th><th>Region</th><th>Last sign-in</th><th className="right">Active</th><th /></tr></thead>
                   <tbody>
                     {list.data!.users.map((u) => (
                       <tr key={u.id} style={{ opacity: u.active ? 1 : 0.55 }}>
+                        <td><input type="checkbox" aria-label={`Select ${u.name}`} checked={sel.includes(u.id)} onChange={(e) => setSel(e.target.checked ? [...sel, u.id] : sel.filter((i) => i !== u.id))} /></td>
                         <td><div className="row" style={{ gap: 8 }}><b style={{ fontWeight: 500 }}>{u.name}</b>{u.role === 'admin' && <span className="badge brand"><ShieldCheck size={11} /> HR admin</span>}</div><div className="muted-sm">{u.email}</div></td>
                         <td>{u.team || '—'}</td><td><span className="badge">{u.region}</span></td>
                         <td className="hint">{u.lastLoginAt ? ago(u.lastLoginAt) : 'Never'}</td>
@@ -148,13 +197,14 @@ export default function Users() {
                 {list.data!.users.length === 0 && <Empty icon={<UserPlus size={30} />} title="No people found">Try a different search, or import a spreadsheet to add everyone at once.</Empty>}
               </div>
               <div className="pager"><span className="hint num">{list.data!.total} people · page {page} of {Math.max(1, Math.ceil(list.data!.total / list.data!.pageSize))}</span>
-                <button className="btn btn-ghost btn-sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button>
-                <button className="btn btn-ghost btn-sm" disabled={page * list.data!.pageSize >= list.data!.total} onClick={() => setPage(page + 1)}>Next</button></div>
+                <button className="btn btn-ghost btn-sm" disabled={page <= 1} onClick={() => { setPage(page - 1); setSel([]); }}>Previous</button>
+                <button className="btn btn-ghost btn-sm" disabled={page * list.data!.pageSize >= list.data!.total} onClick={() => { setPage(page + 1); setSel([]); }}>Next</button></div>
             </>
           )}
         </>
       )}
       {edit && regions.length > 0 && <UserModal user={edit === 'new' ? null : edit} regions={regions} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); refresh(); }} />}
+      {confirmNode}
       {imp && <ImportModal onClose={() => setImp(false)} onDone={refresh} />}
     </>
   );

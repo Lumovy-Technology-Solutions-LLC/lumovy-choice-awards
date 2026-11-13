@@ -50,6 +50,28 @@ r.put('/regions/:code', wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// Delete several regions at once. A region is kept (and reported) if anyone belongs to it or any contest uses it.
+r.post('/regions/bulk-delete', wrap(async (req, res) => {
+  const { codes } = z.object({ codes: z.array(z.string().trim().min(1)).min(1, 'Choose at least one region.').max(200) }).parse(req.body);
+  const contests = await db('contests').select('name', 'regions', 'is_global');
+  const deleted = []; const skipped = [];
+  await db.transaction(async (t) => {
+    for (const code of [...new Set(codes)]) {
+      const g = await t('regions').where({ code }).first();
+      if (!g) { skipped.push({ id: code, name: code, reason: 'Not found.' }); continue; }
+      const people = Number((await t('users').where({ region: code }).count({ n: '*' }).first()).n);
+      if (people) { skipped.push({ id: code, name: g.name, reason: `${people} ${people === 1 ? 'person belongs' : 'people belong'} to it. Move or delete them first.` }); continue; }
+      const used = contests.find((c) => !c.is_global && JSON.parse(c.regions).includes(code));
+      if (used) { skipped.push({ id: code, name: g.name, reason: `It is used by the contest “${used.name}”.` }); continue; }
+      await t('regions').where({ code }).del();
+      deleted.push(code);
+    }
+    if (deleted.length) await audit(req.user, 'Regions deleted', null, { regions: deleted }, t);
+  });
+  if (deleted.length) await refreshRegions();
+  res.json({ deleted: deleted.length, skipped });
+}));
+
 // ---- users ----
 r.get('/users', wrap(async (req, res) => {
   const { q = '', region = '', status = '', role = '', page = '1', pageSize = '50' } = req.query;
@@ -120,6 +142,32 @@ r.put('/users/:id', wrap(async (req, res) => {
     : b.role && b.role !== u.role ? (b.role === 'admin' ? 'HR admin added' : 'HR admin removed') : 'Employee updated';
   await audit(req.user, what, null, { email: u.email });
   res.json({ ok: true });
+}));
+
+// Delete several people at once. Anyone who has voted or saved a ballot is kept (switch them off instead),
+// so turnout history stays correct. You cannot delete yourself or the last active HR admin.
+r.post('/users/bulk-delete', wrap(async (req, res) => {
+  const { ids } = z.object({ ids: z.array(z.number().int()).min(1, 'Choose at least one person.').max(500) }).parse(req.body);
+  const deleted = []; const skipped = [];
+  await db.transaction(async (t) => {
+    for (const id of [...new Set(ids)]) {
+      const u = await t('users').where({ id }).first();
+      if (!u) { skipped.push({ id, name: `#${id}`, reason: 'Not found.' }); continue; }
+      const skip = (reason) => skipped.push({ id, name: u.name, reason });
+      if (id === req.user.id) { skip('You cannot delete yourself.'); continue; }
+      if (u.role === 'admin' && u.active) {
+        const n = Number((await t('users').where({ role: 'admin', active: true }).count({ n: '*' }).first()).n);
+        if (n <= 1) { skip('There must always be at least one active HR admin.'); continue; }
+      }
+      const voted = await t('voter_status').where({ user_id: id }).first() || await t('ballot_drafts').where({ user_id: id }).first();
+      if (voted) { skip('Has voted or saved a ballot. Switch them off instead.'); continue; }
+      await t('otp_codes').where({ email: u.email }).del();
+      await t('users').where({ id }).del();
+      deleted.push(u.email);
+    }
+    if (deleted.length) await audit(req.user, 'Employees deleted', null, { count: deleted.length, emails: deleted.slice(0, 50) }, t);
+  });
+  res.json({ deleted: deleted.length, skipped });
 }));
 
 // ---- spreadsheet import ----

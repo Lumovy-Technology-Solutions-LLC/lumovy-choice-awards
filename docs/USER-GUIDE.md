@@ -167,11 +167,13 @@ For each one you can edit the **subject** and **message**, insert details with t
 - **Edit** a person, or use the **Active** switch to turn off someone who has left. Switched-off people cannot sign in or vote.
 - **HR admin** switch gives or removes admin access. There must always be at least one active admin, and you cannot remove your own access.
 - **Import spreadsheet**: upload `.xlsx` or `.csv` with columns **name, email, team, region** (region is required for every row). Download the template from the same dialog. You see a **check first** (new, to update, problem rows) before anything is saved. People are matched by email: existing ones are updated, new ones are added, and nobody is removed.
+- **Bulk delete**: tick the boxes next to people (or the top box for everyone on the page), then **Delete selected**. After you confirm, they are removed for good. People who have already voted or saved a ballot, you, and the last active HR admin are kept, and the screen lists each one with the reason. To stop someone voting but keep their history, switch them off instead.
 
 **Regions**
 - Every person belongs to exactly one region.
 - Switch a region on to make it available to contests. India is on by default. Add other regions with a short code and name.
 - A region cannot be switched off while an unfinished contest uses it.
+- **Bulk delete**: tick regions and choose **Delete selected**. A region that still has people (active or switched off) or is used by any contest is kept, with the reason shown.
 
 ## 9. Activity log
 
