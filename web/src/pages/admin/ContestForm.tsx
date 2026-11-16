@@ -126,11 +126,7 @@ export default function ContestForm({ contest, timezones }: { contest?: Contest;
           ))}
         </div>
       </Field>}
-      <Field label="Places to vote for" hint="Each voter ranks this many different entries. 1st gets the most points.">
-        <select className="input" style={{ maxWidth: 200 }} value={f.places} disabled={locked} onChange={(e) => set('places', Number(e.target.value))}>
-          {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}{n === 3 ? ' (default)' : ''}</option>)}
-        </select>
-      </Field>
+      <Field label="Places to vote for" hint="Every contest is a top 3: each voter ranks three different entries. 1st gets 3 points, 2nd gets 2 and 3rd gets 1."><div className="badge brand" style={{ width: 'fit-content' }}>Top 3</div></Field>
     </div>
   );
 

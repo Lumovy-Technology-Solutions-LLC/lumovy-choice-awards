@@ -23,6 +23,9 @@ const cleanup = (...files) => files.flat().filter(Boolean).forEach((f) => fs.rm(
 
 const TZ = ['Asia/Kolkata', 'UTC', 'Europe/London', 'America/New_York', 'Asia/Dubai', 'Asia/Singapore', 'Australia/Sydney'];
 
+// Every contest is a top 3: voters rank three entries (3-2-1 points). This is not configurable.
+const PLACES = 3;
+
 const contestBody = z.object({
   name: z.string().trim().min(2, 'Give the contest a name.').max(120),
   theme: z.string().trim().max(200).default(''),
@@ -31,7 +34,6 @@ const contestBody = z.object({
   entryTypes: z.array(z.enum(ENTRY_TYPES)).min(1, 'Choose at least one entry type.'),
   scope: z.enum(['regional', 'selected', 'global']).default('regional'),
   regions: z.array(z.string()).default([]),
-  places: z.number().int().min(1).max(5).default(3),
   timezone: z.enum(TZ).default('Asia/Kolkata'),
   announced: z.boolean().default(false),
   endLocal: z.string().optional().nullable(),
@@ -47,12 +49,12 @@ r.get('/contests', wrap(async (_req, res) => {
 }));
 
 r.post('/contests', wrap(async (req, res) => {
-  const b = normaliseScope(contestBody.parse({ places: 3, ...req.body }));
+  const b = normaliseScope(contestBody.parse(req.body));
   await assertRegions(b.regions);
   const now = nowIso();
   const [id] = await db('contests').insert({
     name: b.name, theme: b.theme, description: b.description, rules: b.rules,
-    entry_types: JSON.stringify(b.entryTypes), regions: JSON.stringify(b.regions), is_global: b.scope === 'global', places: b.places,
+    entry_types: JSON.stringify(b.entryTypes), regions: JSON.stringify(b.regions), is_global: b.scope === 'global', places: PLACES,
     timezone: b.timezone, announced: b.announced, end_at: b.endLocal ? localToUtcIso(b.endLocal, b.timezone) : null,
     created_by: req.user.id, created_at: now, updated_at: now,
   }).returning('id').then((x) => x.map((v) => v.id ?? v));
@@ -76,7 +78,7 @@ r.post('/contests/:id/copy', wrap(async (req, res) => {
   const now = nowIso();
   const [row] = await db('contests').insert({
     name: `${src.name} (copy)`, theme: src.theme, description: src.description, rules: src.rules, banner_file: null,
-    entry_types: JSON.stringify(src.entry_types), regions: JSON.stringify(src.regions), is_global: src.is_global, places: src.places,
+    entry_types: JSON.stringify(src.entry_types), regions: JSON.stringify(src.regions), is_global: src.is_global, places: PLACES,
     timezone: src.timezone, copied_from: src.id, created_by: req.user.id, created_at: now, updated_at: now,
   }).returning('id');
   const id = row.id ?? row;
@@ -123,11 +125,11 @@ r.put('/contests/:id', wrap(async (req, res) => {
     await audit(req.user, 'Contest wording edited while live', c.id);
     return res.json({ ok: true });
   }
-  const b = normaliseScope(contestBody.parse({ places: c.places, ...req.body }));
+  const b = normaliseScope(contestBody.parse(req.body));
   await assertRegions(b.regions);
   await db('contests').where({ id: c.id }).update({
     name: b.name, theme: b.theme, description: b.description, rules: b.rules,
-    entry_types: JSON.stringify(b.entryTypes), regions: JSON.stringify(b.regions), is_global: b.scope === 'global', places: b.places,
+    entry_types: JSON.stringify(b.entryTypes), regions: JSON.stringify(b.regions), is_global: b.scope === 'global', places: PLACES,
     timezone: b.timezone, announced: b.announced,
     end_at: b.endLocal ? localToUtcIso(b.endLocal, b.timezone) : null, updated_at: nowIso(),
   });

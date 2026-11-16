@@ -71,3 +71,16 @@ test('bulk delete of regions keeps those with people or contests', async () => {
   const left = (await call('GET', '/api/admin/regions')).data.regions.map((g) => g.code);
   assert.ok(!left.includes('SG') && !left.includes('FR') && left.includes('US') && left.includes('DE'));
 });
+
+test('contests are always a top 3, whatever the request says', async () => {
+  const body = { name: 'Places', theme: 'T', description: 'D', entryTypes: ['writing'], regions: ['IN'], places: 5, timezone: 'Asia/Kolkata', endLocal: null };
+  const c = await call('POST', '/api/admin/contests', body);
+  assert.equal(c.status, 201);
+  const id = c.data.id;
+  assert.equal(Number((await raw('contests').where({ id }).first()).places), 3);
+  await raw('contests').where({ id }).update({ places: 4 }); // an old draft
+  assert.equal((await call('PUT', `/api/admin/contests/${id}`, { ...body, places: 1 })).status, 200);
+  assert.equal(Number((await raw('contests').where({ id }).first()).places), 3);
+  const copy = await call('POST', `/api/admin/contests/${id}/copy`);
+  if (copy.status === 201) assert.equal(Number((await raw('contests').where({ id: copy.data.id }).first()).places), 3);
+});

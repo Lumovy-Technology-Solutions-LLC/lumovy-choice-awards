@@ -16,7 +16,7 @@ It replaces ad-hoc forms, spreadsheets and email threads with one place where a 
 ## What it does
 
 - Runs any number of contests at the same time, each with its own entry type, deadline, regions and email wording.
-- Shows entries anonymously and lets each employee rank their **1st, 2nd and 3rd** choice (the number of places is configurable, 3 by default).
+- Shows entries anonymously and lets each employee rank their **1st, 2nd and 3rd** choice (always a top 3; the number of places is fixed).
 - Counts points (3-2-1), applies tie-breaks, and publishes winners with names only when HR says so.
 - Opens voting when HR clicks **Start contest** and closes it automatically at the end time (HR can also close early or extend while it is open).
 - Emails everyone at the right moments: contest started, your vote is in, results declared, plus optional reminders and deadline extensions.
