@@ -54,6 +54,7 @@ App settings it configures:
 | `DATABASE_URL` | PostgreSQL only: URL with `sslmode=require`. Leave it unset for SQLite |
 | `UPLOAD_DIR`, `DATA_DIR` | `/home/data/uploads`, `/home/data` (persistent) |
 | `MAIL_TRANSPORT`, `MAIL_FROM` | `smtp` and the sender, for example `Lumovy Choice Awards <DoNotReply@<guid>.azurecomm.net>` |
+| `MAIL_MAX_PER_MINUTE`, `MAIL_MAX_PER_HOUR` | Optional sending pace (default 20 a minute, no hourly cap). See "Sending limits" under Email |
 | `SMTP_HOST`, `SMTP_PORT` | `smtp.azurecomm.net`, `587` |
 | `SMTP_USER`, `SMTP_PASS` | `<ACS resource name>.<Entra app client id>.<tenant id>` and the Entra app client secret |
 | `BOOTSTRAP_ADMIN_*` | first HR admin (remove the password after first sign-in) |
@@ -101,6 +102,21 @@ The portal sends mail through its own queue and the ACS SMTP endpoint, so no one
 3. Open the domain > **MailFrom addresses > Add**, for example `choice-awards` (the full address becomes `choice-awards@lumovy.com`).
 4. In the Communication Service resource (`acs-choice-awards`) > **Email > Domains**, connect the new domain.
 5. In the web app > **Environment variables**, set `MAIL_FROM` to `Lumovy Choice Awards <choice-awards@lumovy.com>`, save and restart.
+
+**Why emails land in junk, and the fix.** Mail from `...@<guid>.azurecomm.net` is sent by Azure on a shared domain with no reputation of its own, and Microsoft 365 often treats it as suspicious. Sending as `lumovy.com` from the portal only helps if `lumovy.com` proves the portal is allowed to send for it. Do both of these:
+
+1. **Use your own verified domain** (steps above) and make sure DNS has all of: the **SPF** record ACS gives you (`v=spf1 include:spf.protection.outlook.com -all`, merged into any existing SPF record for the domain, never a second one), the two **DKIM** CNAMEs, and a **DMARC** record such as `_dmarc.lumovy.com` TXT `v=DMARC1; p=none; rua=mailto:hradmin@lumovy.com`. Check them with the Microsoft Remote Connectivity Analyzer or `mail-tester.com`.
+2. **Tell Microsoft 365 the sender is trusted** (needed for the first weeks, since new senders have no reputation). In the Exchange admin center > Mail flow > Rules > **Add a rule**: apply when the sender is `choice-awards@lumovy.com` (or the azurecomm.net address) and the message header `Auto-Submitted` is `auto-generated`; then **Set the spam confidence level (SCL) to -1**. Or add the sender under Defender > Policies & rules > Threat policies > **Tenant Allow/Block List**. Ask recipients to mark one email "Not junk" as well.
+
+The portal already marks every email as an automatic message and sends a plain-text copy beside the HTML one. You can set `MAIL_REPLY_TO` to a real mailbox (for example `hradmin@lumovy.com`) so replies go somewhere.
+
+**Sending limits ("450 4.5.127 Excessive message rate").** Azure Communication Services limits how fast one sender can send: roughly **a few emails a minute on the free Azure managed domain**, and about **30 a minute and 100 an hour on a verified own domain** for new resources. Going over gets the SMTP error `450 4.5.127 Message rejected. Excessive message rate from sender`. The portal handles this itself:
+
+- Bulk emails (contest started, reminders, results) go out in small batches within `MAIL_MAX_PER_MINUTE` (default 20) and, if set, `MAIL_MAX_PER_HOUR`. The rest wait in the queue and are sent as each minute or hour resets, until everyone has been emailed. Set the caps a little under your provider's limit, for example `MAIL_MAX_PER_MINUTE=4` on the managed domain, or `MAIL_MAX_PER_MINUTE=25` and `MAIL_MAX_PER_HOUR=90` on an own domain.
+- If the provider still answers "too fast", the emails stay queued (they do **not** count as failed), sending pauses for 2 minutes (doubling up to 15), then resumes by itself.
+- Sign-in codes and vote confirmations are always sent before bulk emails, so a company-wide send never delays a login.
+- **Admin > Email outbox** shows how many are waiting, and has **Retry failed** to put earlier failed emails (for example from before this change) back in the queue.
+- To send faster, raise the limit with an Azure support request (Communication Services > Help > New support request > "Email rate limit increase"), then raise the two settings.
 
 **If `provision.sh` cannot create the Entra app** (no permission in your tenant): create an app registration and client secret in Entra ID, give it the **Communication and Email Service Owner** role on the `acs-choice-awards` resource (Access control (IAM)), then set `SMTP_USER` to `<ACS resource name>.<app client id>.<tenant id>` and `SMTP_PASS` to the client secret in App Service environment variables.
 

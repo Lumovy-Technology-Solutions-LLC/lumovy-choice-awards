@@ -164,37 +164,102 @@ function getTransporter() {
     transporter = nodemailer.createTransport({
       host: config.mail.host, port: config.mail.port, secure: config.mail.secure,
       auth: config.mail.user ? { user: config.mail.user, pass: config.mail.pass } : undefined,
-      pool: true, maxConnections: 5, maxMessages: 100,
+      pool: true, maxConnections: 2, maxMessages: 100,
     });
   }
   return transporter;
 }
 
+/** Tests only: replace the SMTP connection. */
+export const setTransporterForTests = (t) => { transporter = t; };
+export const resetPauseForTests = () => { pausedUntil = 0; pauseMs = 0; notBefore.clear(); };
+
 const WORKER_ID = `${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
+
+// ---- pacing ----
+// The provider answers "450 4.5.127 Excessive message rate" when a sender goes too fast. We never get that far:
+// bulk mail is sent a few at a time inside a per-minute (and optional per-hour) cap. If the provider still pushes back,
+// the rate-limited emails go back in the queue untouched (no failed attempt) and sending pauses, then resumes by itself.
+const PAUSE_START_MS = 2 * 60_000;
+const PAUSE_MAX_MS = 15 * 60_000;
+let pausedUntil = 0; let pauseMs = 0;
+const notBefore = new Map(); // outbox id -> earliest time to try again
+
+export const isRateLimit = (e) => {
+  const code = Number(e?.responseCode);
+  return [421, 450, 451, 452].includes(code) || /rate|throttl|too many|excessive|quota|limit/i.test(`${e?.response || ''} ${e?.message || ''}`);
+};
+const isPermanent = (e) => { const c = Number(e?.responseCode); return c >= 500 && c < 600 && !isRateLimit(e); };
+
+const BULK_FIRST = "case kind when 'otp' then 0 when 'vote_confirmation' then 1 else 2 end";
+async function sentSince(ms) {
+  const row = await db('outbox').where({ status: 'sent' }).where('sent_at', '>', new Date(Date.now() - ms).toISOString()).count({ n: '*' }).first();
+  return Number(row.n);
+}
+/** How many bulk emails may go out right now. */
+async function bulkBudget() {
+  if (Date.now() < pausedUntil) return 0;
+  let n = Infinity;
+  const { maxPerMinute, maxPerHour } = config.mail;
+  if (maxPerMinute > 0) n = Math.min(n, maxPerMinute - (await sentSince(60_000)));
+  if (maxPerHour > 0) n = Math.min(n, maxPerHour - (await sentSince(3_600_000)));
+  return Math.max(0, n);
+}
 
 export async function processOutbox(limit = 25) {
   // Safe with several app instances: rows are claimed atomically, and only the claimed rows are sent.
   const now = nowIso();
   await db('outbox').where({ status: 'sending' }).where('claimed_at', '<', new Date(Date.now() - 5 * 60_000).toISOString()).update({ status: 'queued', claimed_by: null }); // crashed worker
-  const ids = (await db('outbox').where({ status: 'queued' }).orderBy('id').limit(limit).select('id')).map((r) => r.id);
+  const t = Date.now();
+  // Sign-in codes first, then vote confirmations, then bulk mail, so a company-wide send never delays someone trying to log in.
+  const queued = (await db('outbox').where({ status: 'queued' }).orderByRaw(`${BULK_FIRST}, id`).limit(limit * 4).select('id', 'kind'))
+    .filter((r) => !(notBefore.get(r.id) > t));
+  const urgent = queued.filter((r) => r.kind === 'otp');
+  const bulk = queued.filter((r) => r.kind !== 'otp').slice(0, Math.min(limit, await bulkBudget()));
+  const ids = [...urgent, ...bulk].map((r) => r.id);
   if (!ids.length) return 0;
   await db('outbox').whereIn('id', ids).where({ status: 'queued' }).update({ status: 'sending', claimed_by: WORKER_ID, claimed_at: now });
-  const batch = await db('outbox').whereIn('id', ids).where({ status: 'sending', claimed_by: WORKER_ID });
+  const batch = (await db('outbox').whereIn('id', ids).where({ status: 'sending', claimed_by: WORKER_ID })).sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
   if (!batch.length) return 0;
-  await Promise.all(batch.map(async (m) => {
+  const release = (rows, extra = {}) => db('outbox').whereIn('id', rows.map((r) => r.id)).update({ status: 'queued', claimed_by: null, ...extra });
+  let done = 0;
+  for (let i = 0; i < batch.length; i++) {
+    const m = batch[i];
     try {
       if (config.mail.transport === 'smtp') {
-        await getTransporter().sendMail({ from: config.mail.from, to: m.to_name ? `"${m.to_name.replace(/"/g, '')}" <${m.to_email}>` : m.to_email, subject: m.subject, html: m.html, text: m.text });
-        await db('outbox').where({ id: m.id }).update({ status: 'sent', sent_at: nowIso(), attempts: m.attempts + 1 });
+        await getTransporter().sendMail({
+          from: config.mail.from, to: m.to_name ? `"${m.to_name.replace(/"/g, '')}" <${m.to_email}>` : m.to_email,
+          subject: m.subject, html: m.html, text: m.text,
+          ...(config.mail.replyTo ? { replyTo: config.mail.replyTo } : {}),
+          // Marks this as a system message so mail servers and out-of-office replies treat it as such.
+          headers: { 'Auto-Submitted': 'auto-generated', 'X-Auto-Response-Suppress': 'All' },
+        });
+        await db('outbox').where({ id: m.id }).update({ status: 'sent', sent_at: nowIso(), attempts: m.attempts + 1, error: null });
+        pauseMs = 0;
       } else {
         await db('outbox').where({ id: m.id }).update({ status: 'captured', sent_at: nowIso(), attempts: m.attempts + 1 });
       }
+      done++;
     } catch (e) {
-      const attempts = m.attempts + 1;
-      await db('outbox').where({ id: m.id }).update({ status: attempts >= 3 ? 'failed' : 'queued', attempts, error: String(e.message).slice(0, 500) });
+      const msg = String(e.message).slice(0, 500);
+      if (isRateLimit(e)) {
+        // Too fast: nothing is lost. Put this and the rest of the batch back, wait, and carry on later.
+        pauseMs = Math.min(PAUSE_MAX_MS, pauseMs ? pauseMs * 2 : PAUSE_START_MS);
+        pausedUntil = Date.now() + pauseMs;
+        const rest = batch.slice(i);
+        rest.forEach((r) => notBefore.set(r.id, r.kind === 'otp' ? Date.now() + 15_000 : 0));
+        await release(rest);
+        await db('outbox').where({ id: m.id }).update({ error: `Waiting: ${msg}` });
+        console.warn(`Mail provider says we are sending too fast. Pausing bulk mail for ${Math.round(pauseMs / 60000)} min; ${rest.length} emails stay queued.`);
+        return 0;
+      }
+      const attempts = isPermanent(e) ? 3 : m.attempts + 1; // a permanent refusal (bad address) will not improve with retries
+      if (attempts < 3) notBefore.set(m.id, Date.now() + 60_000);
+      await db('outbox').where({ id: m.id }).update({ status: attempts >= 3 ? 'failed' : 'queued', claimed_by: null, attempts, error: msg });
+      done++;
     }
-  }));
-  return batch.length;
+  }
+  return done;
 }
 
 export function startMailWorker() {

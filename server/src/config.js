@@ -30,6 +30,12 @@ export const config = {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
     secure: process.env.SMTP_SECURE === 'true',
+    // Providers cap how fast one sender may send (Azure Communication Services: a few a minute on the free Azure address,
+    // about 30 a minute and 100 an hour on a verified own domain). The queue sends in small batches within these caps and
+    // carries on after each reset until everyone has been emailed. 0 = no cap of our own (the provider's limit still applies).
+    maxPerMinute: Number(process.env.MAIL_MAX_PER_MINUTE ?? 20),
+    maxPerHour: Number(process.env.MAIL_MAX_PER_HOUR ?? 0),
+    replyTo: process.env.MAIL_REPLY_TO || '',
   },
   bootstrap: {
     email: process.env.BOOTSTRAP_ADMIN_EMAIL || 'hr@lumovy.com',

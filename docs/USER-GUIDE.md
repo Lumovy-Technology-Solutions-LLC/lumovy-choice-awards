@@ -205,6 +205,7 @@ While either switch is off, a yellow bar at the top of every admin page reminds 
 
 | Problem | What to do |
 | --- | --- |
+| (HR) Many emails are "queued" for a while | Normal. The provider limits how fast we may send, so a big send goes out gradually and finishes by itself. Sign-in codes are sent first. Use **Retry failed** in the Email outbox for any marked failed. |
 | I did not get my code | Check spam, wait up to a minute, press Resend code. Only employees on the eligible list get one. |
 | "Not on the eligible list" | Ask HR to check your email and that you are switched on. |
 | I cannot vote in a contest | It may not be open to your region ("view only"), voting may not have started, or it has closed. |

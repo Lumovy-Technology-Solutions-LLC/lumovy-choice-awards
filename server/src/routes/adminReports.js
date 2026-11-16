@@ -4,6 +4,7 @@ import { db, parseJson } from '../db/index.js';
 import { audit } from '../lib/audit.js';
 import { getContest, participantRegions, contestShape, entryShape, regionRecipients, resultsPayload, STATUS_LABEL, hydrate } from '../lib/contests.js';
 import { tally } from '../lib/scoring.js';
+import { config } from '../config.js';
 import { wrap, notFound, conflict, entryLabel } from '../lib/util.js';
 
 const r = Router();
@@ -123,7 +124,14 @@ r.get('/outbox', wrap(async (req, res) => {
   const total = Number((await q.clone().count({ n: '*' }).first()).n);
   const rows = await q.clone().orderBy('id', 'desc').limit(50).offset((Math.max(1, Number(page)) - 1) * 50).select('id', 'contest_id', 'kind', 'to_email', 'to_name', 'subject', 'status', 'attempts', 'error', 'created_at', 'sent_at');
   const stats = await db('outbox').select('status').count({ n: '*' }).groupBy('status');
-  res.json({ total, items: rows, stats: Object.fromEntries(stats.map((s) => [s.status, Number(s.n)])) });
+  res.json({ total, items: rows, stats: Object.fromEntries(stats.map((s) => [s.status, Number(s.n)])), pace: { perMinute: config.mail.maxPerMinute, perHour: config.mail.maxPerHour } });
+}));
+
+// Put every failed email back in the queue (for example after a sending limit or a mail outage). They go out at the normal pace.
+r.post('/outbox/retry-failed', wrap(async (req, res) => {
+  const n = await db('outbox').where({ status: 'failed' }).update({ status: 'queued', attempts: 0, claimed_by: null });
+  if (n) await audit(req.user, 'Failed emails retried', null, { count: n });
+  res.json({ requeued: n });
 }));
 
 r.get('/outbox/:id', wrap(async (req, res) => {

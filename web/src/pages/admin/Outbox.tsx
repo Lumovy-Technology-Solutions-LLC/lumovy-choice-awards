@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Mail } from 'lucide-react';
 import { api } from '../../api';
-import { fmtDateTime } from '../../lib';
+import { errMsg, fmtDateTime, useToast } from '../../lib';
 import { Empty, ErrorState, Modal, PageLoader } from '../../components/ui';
 
 interface Msg { id: number; contest_id: number | null; kind: string; to_email: string; to_name: string; subject: string; status: string; attempts: number; error: string | null; created_at: string; sent_at: string | null }
@@ -11,7 +11,9 @@ const TONE: Record<string, string> = { sent: 'good', captured: 'brand', queued: 
 
 export default function Outbox() {
   const [status, setStatus] = useState(''); const [kind, setKind] = useState(''); const [page, setPage] = useState(1); const [open, setOpen] = useState<number | null>(null);
-  const q = useQuery({ queryKey: ['outbox', status, kind, page], placeholderData: keepPreviousData, refetchInterval: 8000, queryFn: () => api.get<{ total: number; items: Msg[]; stats: Record<string, number> }>(`/api/admin/outbox?status=${status}&kind=${kind}&page=${page}`) });
+  const qc = useQueryClient(); const toast = useToast();
+  const retry = useMutation({ mutationFn: () => api.post<{ requeued: number }>('/api/admin/outbox/retry-failed'), onSuccess: (r) => { toast(`${r.requeued} failed emails put back in the queue.`); qc.invalidateQueries({ queryKey: ['outbox'] }); }, onError: (e) => toast(errMsg(e), 'error') });
+  const q = useQuery({ queryKey: ['outbox', status, kind, page], placeholderData: keepPreviousData, refetchInterval: 8000, queryFn: () => api.get<{ total: number; items: Msg[]; stats: Record<string, number>; pace?: { perMinute: number; perHour: number } }>(`/api/admin/outbox?status=${status}&kind=${kind}&page=${page}`) });
   const msg = useQuery({ queryKey: ['outbox-msg', open], enabled: open != null, queryFn: () => api.get<{ message: { subject: string; html: string; to_email: string; status: string } }>(`/api/admin/outbox/${open}`) });
   if (q.isLoading) return <PageLoader />;
   if (q.isError) return <ErrorState error={q.error} retry={() => q.refetch()} />;
@@ -19,7 +21,9 @@ export default function Outbox() {
   return (
     <>
       <div className="admin-top"><div><div className="eyebrow">HR admin</div><h1>Email outbox</h1><p className="hint" style={{ marginTop: 4 }}>Every email the portal sends is recorded here.</p></div></div>
-      <div className="row">{Object.entries(d.stats).map(([k, v]) => <span key={k} className={`badge ${TONE[k] || ''}`}>{k}: {v}</span>)}</div>
+      <div className="row">{Object.entries(d.stats).map(([k, v]) => <span key={k} className={`badge ${TONE[k] || ''}`}>{k}: {v}</span>)}
+        {(d.stats.failed ?? 0) > 0 && <button className="btn btn-ghost btn-sm" disabled={retry.isPending} onClick={() => retry.mutate()}>Retry {d.stats.failed} failed</button>}</div>
+      {(d.stats.queued ?? 0) > 0 && <div className="notice">{d.stats.queued} emails are waiting. To stay within the email provider's sending limit they go out gradually{d.pace?.perMinute ? `, up to ${d.pace.perMinute} a minute${d.pace.perHour ? ` and ${d.pace.perHour} an hour` : ''}` : ''}, and sending carries on by itself until everyone has been emailed. Sign-in codes are always sent first.</div>}
       <div className="toolbar">
         <select className="input" aria-label="Status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}><option value="">All statuses</option>{['queued', 'sent', 'captured', 'failed', 'cancelled'].map((s) => <option key={s}>{s}</option>)}</select>
         <select className="input" aria-label="Kind" value={kind} onChange={(e) => { setKind(e.target.value); setPage(1); }}><option value="">All kinds</option>{Object.entries(KIND).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
