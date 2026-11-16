@@ -21,7 +21,7 @@ export function HowItWorks({ places = 3, onClose }: { places?: number; onClose: 
   return (
     <Modal title="How voting works" onClose={onClose}>
       <div className="review-list">
-        <Step badge={<Bubble r={1} label="1st" />} title={`Rank ${places} different entries`}>1st gets {places} points, 2nd gets {places - 1}, 3rd gets 1.</Step>
+        <Step badge={<Bubble r={1} label="1" />} title={`Rank ${places} different entries`}>1st gets {places} points, 2nd gets {places - 1}, 3rd gets 1.</Step>
         <Step badge={<Bubble r={2} label="2" />} title="Not sure yet? Save">Pick one or two and save. Your picks are here when you come back.</Step>
         <Step badge={<Bubble r={3} label="3" />} title="Submit once">After you submit, your vote is final and you get an email receipt.</Step>
       </div>
