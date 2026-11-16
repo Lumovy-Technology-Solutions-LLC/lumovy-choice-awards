@@ -55,6 +55,7 @@ App settings it configures:
 | `UPLOAD_DIR`, `DATA_DIR` | `/home/data/uploads`, `/home/data` (persistent) |
 | `MAIL_TRANSPORT`, `MAIL_FROM` | `smtp` and the sender, for example `Lumovy Choice Awards <DoNotReply@<guid>.azurecomm.net>` |
 | `MAIL_MAX_PER_MINUTE`, `MAIL_MAX_PER_HOUR` | Optional sending pace (default 20 a minute, no hourly cap). See "Sending limits" under Email |
+| `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`, `GRAPH_SENDER` | Only with `MAIL_TRANSPORT=graph` (send through a Microsoft 365 mailbox, see "Email through your own Microsoft 365 mailbox") |
 | `SMTP_HOST`, `SMTP_PORT` | `smtp.azurecomm.net`, `587` |
 | `SMTP_USER`, `SMTP_PASS` | `<ACS resource name>.<Entra app client id>.<tenant id>` and the Entra app client secret |
 | `BOOTSTRAP_ADMIN_*` | first HR admin (remove the password after first sign-in) |
@@ -103,7 +104,30 @@ The portal sends mail through its own queue and the ACS SMTP endpoint, so no one
 4. In the Communication Service resource (`acs-choice-awards`) > **Email > Domains**, connect the new domain.
 5. In the web app > **Environment variables**, set `MAIL_FROM` to `Lumovy Choice Awards <choice-awards@lumovy.com>`, save and restart.
 
-**Why emails land in junk, and the fix.** Mail from `...@<guid>.azurecomm.net` is sent by Azure on a shared domain with no reputation of its own, and Microsoft 365 often treats it as suspicious. Sending as `lumovy.com` from the portal only helps if `lumovy.com` proves the portal is allowed to send for it. Do both of these:
+### Email through your own Microsoft 365 mailbox (Microsoft Graph)
+
+This replaces ACS. The portal sends as one Lumovy mailbox (for example `choice-awards@lumovy.com`) through Microsoft Graph. There is no mailbox password and no SMTP password, mail to colleagues is internal (so it normally reaches the inbox, not junk), and the limit is Microsoft 365's: **30 emails a minute and 10,000 recipients a day**, with no hourly cap, so a 250-person send finishes in about 10 minutes. Set `MAIL_TRANSPORT=graph` to use it. Setting it up needs a Microsoft 365 / Entra admin for steps 1 to 3.
+
+1. **Mailbox.** Exchange admin center > Recipients > Mailboxes > **Add a shared mailbox** named `choice-awards@lumovy.com`. A shared mailbox needs no licence.
+2. **Entra app.** Entra admin center > App registrations > **New registration** (`lumovy-choice-awards-mail`, this tenant only). Copy the **Application (client) ID** and **Directory (tenant) ID**. Under **Certificates & secrets** create a client secret and copy its **Value** (put a calendar reminder 1 month before it expires). Under **API permissions** > Add > Microsoft Graph > **Application permissions** > `Mail.Send`, then **Grant admin consent**.
+3. **Limit the app to that one mailbox (do not skip).** `Mail.Send` as an application permission can otherwise send as *anyone* in the company. In Exchange Online PowerShell:
+   ```powershell
+   Connect-ExchangeOnline
+   New-DistributionGroup -Name "Choice Awards Mail Senders" -Alias choice-awards-senders -Type Security -Members choice-awards@lumovy.com
+   New-ApplicationAccessPolicy -AppId <client id> -PolicyScopeGroupId choice-awards-senders@lumovy.com -AccessRight RestrictAccess -Description "Choice Awards sends only as choice-awards@lumovy.com"
+   Test-ApplicationAccessPolicy -AppId <client id> -Identity choice-awards@lumovy.com   # AccessCheckResult should be Granted
+   ```
+   The policy can take up to an hour to take effect. Until then sending may answer "403 access denied". The portal keeps the emails queued and retries by itself.
+4. **App settings** (Cloud Shell; the app restarts by itself):
+   ```bash
+   az webapp config appsettings set -n lumovy-choice-awards-dev -g rg-lumovy-choice-awards --settings      MAIL_TRANSPORT=graph MAIL_FROM="Lumovy Choice Awards <choice-awards@lumovy.com>" GRAPH_SENDER=choice-awards@lumovy.com      GRAPH_TENANT_ID=<tenant id> GRAPH_CLIENT_ID=<client id> GRAPH_CLIENT_SECRET=<secret value>      MAIL_MAX_PER_MINUTE=25 MAIL_MAX_PER_HOUR=0 MAIL_REPLY_TO=hradmin@lumovy.com
+   ```
+   The old `SMTP_*` settings can stay or be deleted.
+5. **Check.** In **Admin > Settings** the mode reads **Live (Microsoft 365 mailbox)**; send yourself a test email. In **Admin > Email outbox**, a message that says "not allowed to send as ..." means step 3 is not finished yet, and "Microsoft sign-in for the mail app failed" means the tenant ID, client ID or secret is wrong. Queued emails are not lost: they send by themselves once it is fixed.
+
+For external recipients, also turn on DKIM for `lumovy.com` in Microsoft Defender > Email & collaboration > Policies > Email authentication settings > DKIM. Renewing the secret: create a new one in Entra, update `GRAPH_CLIENT_SECRET`, restart.
+
+**Why emails land in junk, and the fix (when using ACS).** Mail from `...@<guid>.azurecomm.net` is sent by Azure on a shared domain with no reputation of its own, and Microsoft 365 often treats it as suspicious. Sending as `lumovy.com` from the portal only helps if `lumovy.com` proves the portal is allowed to send for it. Do both of these:
 
 1. **Use your own verified domain** (steps above) and make sure DNS has all of: the **SPF** record ACS gives you (`v=spf1 include:spf.protection.outlook.com -all`, merged into any existing SPF record for the domain, never a second one), the two **DKIM** CNAMEs, and a **DMARC** record such as `_dmarc.lumovy.com` TXT `v=DMARC1; p=none; rua=mailto:hradmin@lumovy.com`. Check them with the Microsoft Remote Connectivity Analyzer or `mail-tester.com`.
 2. **Tell Microsoft 365 the sender is trusted** (needed for the first weeks, since new senders have no reputation). In the Exchange admin center > Mail flow > Rules > **Add a rule**: apply when the sender is `choice-awards@lumovy.com` (or the azurecomm.net address) and the message header `Auto-Submitted` is `auto-generated`; then **Set the spam confidence level (SCL) to -1**. Or add the sender under Defender > Policies & rules > Threat policies > **Tenant Allow/Block List**. Ask recipients to mark one email "Not junk" as well.

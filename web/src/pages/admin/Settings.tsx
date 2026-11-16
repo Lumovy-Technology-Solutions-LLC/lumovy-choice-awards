@@ -63,7 +63,7 @@ export default function Settings() {
       <div className="card" style={{ padding: 20, marginTop: 16 }}>
         <h3 style={{ margin: 0 }}>Email delivery</h3>
         <p className="hint" style={{ marginTop: 4 }}>
-          Mode: <b>{s.transport === 'smtp' ? 'Live (Azure Communication Services)' : 'Test mode (nothing is sent)'}</b><br />
+          Mode: <b>{s.transport === 'graph' ? 'Live (Microsoft 365 mailbox)' : s.transport === 'smtp' ? 'Live (Azure Communication Services)' : 'Test mode (nothing is sent)'}</b><br />
           Sent from: <b>{s.from}</b><br />
           Failed in the last 24 hours: <b>{s.failedEmails24h}</b>{s.failedEmails24h > 0 && ' — see Email outbox. If every email fails, the SMTP secret may have expired; update it in the web app’s environment variables.'}
         </p>

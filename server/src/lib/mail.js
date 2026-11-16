@@ -174,6 +174,55 @@ function getTransporter() {
 export const setTransporterForTests = (t) => { transporter = t; };
 export const resetPauseForTests = () => { pausedUntil = 0; pauseMs = 0; notBefore.clear(); };
 
+// ---- Microsoft Graph (send as one Microsoft 365 mailbox) ----
+let graphToken = { value: '', exp: 0 };
+async function getGraphToken() {
+  if (graphToken.value && Date.now() < graphToken.exp - 60_000) return graphToken.value;
+  const g = config.mail.graph;
+  if (!g.tenantId || !g.clientId || !g.clientSecret) throw Object.assign(new Error('Microsoft Graph is not set up: GRAPH_TENANT_ID, GRAPH_CLIENT_ID and GRAPH_CLIENT_SECRET are required.'), { retryLater: true, retryAfterMs: 5 * 60_000 });
+  const res = await fetch(`https://login.microsoftonline.com/${encodeURIComponent(g.tenantId)}/oauth2/v2.0/token`, {
+    method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: g.clientId, client_secret: g.clientSecret, scope: 'https://graph.microsoft.com/.default', grant_type: 'client_credentials' }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(`Microsoft sign-in for the mail app failed (${res.status}): ${String(j.error_description || j.error || 'unknown').slice(0, 160)}`), { retryLater: true, retryAfterMs: 5 * 60_000 });
+  graphToken = { value: j.access_token, exp: Date.now() + Number(j.expires_in || 3600) * 1000 };
+  return graphToken.value;
+}
+
+const parseFrom = (from) => { const m = /^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/.exec(from || ''); return m ? { name: m[1].trim(), address: m[2].trim() } : { name: '', address: String(from || '').trim() }; };
+
+/** Sends one email through Graph. Throttling (429/503/504) and setup problems (401/403) are marked "try again later". */
+export async function sendViaGraph(m) {
+  const from = parseFrom(config.mail.from);
+  const sender = config.mail.graph.sender || from.address;
+  const token = await getGraphToken();
+  const body = {
+    message: {
+      subject: m.subject,
+      body: { contentType: 'HTML', content: m.html },
+      // Shows "Lumovy Choice Awards" as the sender name even when the mailbox is shared with another system.
+      ...(from.name ? { from: { emailAddress: { name: from.name, address: sender } } } : {}),
+      toRecipients: [{ emailAddress: { address: m.to_email, ...(m.to_name ? { name: m.to_name.replace(/"/g, '') } : {}) } }],
+      ...(config.mail.replyTo ? { replyTo: [{ emailAddress: { address: config.mail.replyTo } }] } : {}),
+      internetMessageHeaders: [{ name: 'X-Auto-Response-Suppress', value: 'All' }],
+    },
+    saveToSentItems: false,
+  };
+  const res = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
+    method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(body),
+  });
+  if (res.status === 202 || res.ok) return;
+  const j = await res.json().catch(() => ({}));
+  const text = `Microsoft Graph ${res.status}: ${j?.error?.code || ''} ${j?.error?.message || ''}`.replace(/\s+/g, ' ').trim();
+  const err = new Error(text);
+  if ([429, 503, 504].includes(res.status)) { err.retryLater = true; err.retryAfterMs = Number(res.headers.get('retry-after') || 0) * 1000; }
+  else if (res.status === 401) { graphToken = { value: '', exp: 0 }; err.retryLater = true; err.retryAfterMs = 60_000; }
+  else if (res.status === 403) { err.retryLater = true; err.retryAfterMs = 5 * 60_000; err.message = `${text} (the mail app is not allowed to send as ${sender}: check the Mail.Send permission and the access policy)`; }
+  else if (res.status >= 400 && res.status < 500) err.permanent = true; // for example an invalid recipient address
+  throw err;
+}
+
 const WORKER_ID = `${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 
 // ---- pacing ----
@@ -186,10 +235,11 @@ let pausedUntil = 0; let pauseMs = 0;
 const notBefore = new Map(); // outbox id -> earliest time to try again
 
 export const isRateLimit = (e) => {
+  if (e?.retryLater) return true;
   const code = Number(e?.responseCode);
   return [421, 450, 451, 452].includes(code) || /rate|throttl|too many|excessive|quota|limit/i.test(`${e?.response || ''} ${e?.message || ''}`);
 };
-const isPermanent = (e) => { const c = Number(e?.responseCode); return c >= 500 && c < 600 && !isRateLimit(e); };
+const isPermanent = (e) => { if (e?.permanent) return true; const c = Number(e?.responseCode); return c >= 500 && c < 600 && !isRateLimit(e); };
 
 const BULK_FIRST = "case kind when 'otp' then 0 when 'vote_confirmation' then 1 else 2 end";
 async function sentSince(ms) {
@@ -226,8 +276,9 @@ export async function processOutbox(limit = 25) {
   for (let i = 0; i < batch.length; i++) {
     const m = batch[i];
     try {
-      if (config.mail.transport === 'smtp') {
-        await getTransporter().sendMail({
+      if (config.mail.transport === 'graph' || config.mail.transport === 'smtp') {
+        if (config.mail.transport === 'graph') await sendViaGraph(m);
+        else await getTransporter().sendMail({
           from: config.mail.from, to: m.to_name ? `"${m.to_name.replace(/"/g, '')}" <${m.to_email}>` : m.to_email,
           subject: m.subject, html: m.html, text: m.text,
           ...(config.mail.replyTo ? { replyTo: config.mail.replyTo } : {}),
@@ -244,7 +295,7 @@ export async function processOutbox(limit = 25) {
       const msg = String(e.message).slice(0, 500);
       if (isRateLimit(e)) {
         // Too fast: nothing is lost. Put this and the rest of the batch back, wait, and carry on later.
-        pauseMs = Math.min(PAUSE_MAX_MS, pauseMs ? pauseMs * 2 : PAUSE_START_MS);
+        pauseMs = Math.min(PAUSE_MAX_MS, Math.max(e.retryAfterMs || 0, pauseMs ? pauseMs * 2 : PAUSE_START_MS));
         pausedUntil = Date.now() + pauseMs;
         const rest = batch.slice(i);
         rest.forEach((r) => notBefore.set(r.id, r.kind === 'otp' ? Date.now() + 15_000 : 0));

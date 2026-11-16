@@ -84,7 +84,7 @@ One Node process serves the API and, in production, the built web app (`web/dist
 
 ## Email
 
-All emails go through the `outbox` table. A worker claims queued rows, sends them, and marks `sent`, or after 3 failures `failed`. Sending is paced (`MAIL_MAX_PER_MINUTE`, optional `MAIL_MAX_PER_HOUR`): sign-in codes and vote confirmations go first, bulk mail goes in small batches, and a provider "too fast" reply (450 4.5.127) puts the emails back in the queue and pauses sending, without counting a failed attempt. This keeps a full-company send off the request path and survives restarts. `MAIL_TRANSPORT=dev` captures instead of sending, which is how the portal runs without SMTP. HR can also switch email off in **Admin > Settings**: `queue()` checks the `app_settings` flags and skips sign-in codes or notifications accordingly, and the sign-in page hides the email-code option.
+All emails go through the `outbox` table. A worker claims queued rows, sends them, and marks `sent`, or after 3 failures `failed`. Sending is paced (`MAIL_MAX_PER_MINUTE`, optional `MAIL_MAX_PER_HOUR`): sign-in codes and vote confirmations go first, bulk mail goes in small batches, and a provider "too fast" reply (450 4.5.127) puts the emails back in the queue and pauses sending, without counting a failed attempt. This keeps a full-company send off the request path and survives restarts. `MAIL_TRANSPORT` is `smtp` (Nodemailer), `graph` (Microsoft Graph `sendMail` as one Microsoft 365 mailbox; throttling or permission answers keep emails queued) or `dev`, which captures instead of sending, which is how the portal runs without SMTP. HR can also switch email off in **Admin > Settings**: `queue()` checks the `app_settings` flags and skips sign-in codes or notifications accordingly, and the sign-in page hides the email-code option.
 
 ## Scaling notes
 
@@ -112,7 +112,7 @@ Put it behind HTTPS (a reverse proxy or load balancer). `trust proxy` is enabled
 | `DATABASE_URL` | Empty for SQLite; `postgres://...` for PostgreSQL |
 | `SQLITE_JOURNAL`, `BACKUP_HOURS`, `BACKUP_KEEP` | SQLite only: `wal` (default) or `delete` (use on Azure network storage), backup interval (6) and number kept (40) |
 | `UPLOAD_DIR` | Where uploaded files live |
-| `MAIL_TRANSPORT`, `MAIL_FROM`, `SMTP_*` | `dev` or `smtp` |
+| `MAIL_TRANSPORT`, `MAIL_FROM`, `SMTP_*`, `GRAPH_*` | `dev`, `smtp` or `graph` |
 | `BOOTSTRAP_ADMIN_*` | First HR admin, created if no admin exists |
 
 ## Testing

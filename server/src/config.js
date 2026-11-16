@@ -30,6 +30,14 @@ export const config = {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
     secure: process.env.SMTP_SECURE === 'true',
+    // MAIL_TRANSPORT=graph: send through Microsoft Graph as one Microsoft 365 mailbox (no mailbox password; an Entra app
+    // that is only allowed to send as that mailbox). GRAPH_SENDER is that mailbox; it must match the address in MAIL_FROM.
+    graph: {
+      tenantId: process.env.GRAPH_TENANT_ID || '',
+      clientId: process.env.GRAPH_CLIENT_ID || '',
+      clientSecret: process.env.GRAPH_CLIENT_SECRET || '',
+      sender: process.env.GRAPH_SENDER || '',
+    },
     // Providers cap how fast one sender may send (Azure Communication Services: a few a minute on the free Azure address,
     // about 30 a minute and 100 an hour on a verified own domain). The queue sends in small batches within these caps and
     // carries on after each reset until everyone has been emailed. 0 = no cap of our own (the provider's limit still applies).
