@@ -11,7 +11,7 @@
 | Database | SQLite (better-sqlite3) for local and small deployments; PostgreSQL for production. Both through Knex migrations |
 | Auth | Email one-time code **or** password (bcrypt); JWT in an httpOnly cookie |
 | Files | Local disk (`UPLOAD_DIR`); processing with sharp (images), pdf-lib (PDF), JSZip (Word), mammoth (Word to HTML); optional ffmpeg for video |
-| Email | Nodemailer (SMTP, Azure Communication Services in production) or a built-in dev mailbox, through a database-backed queue |
+| Email | Microsoft Graph (one Microsoft 365 mailbox) in production, Nodemailer SMTP as an alternative, or a built-in dev mailbox, through a database-backed queue |
 | Excel | ExcelJS (import and export) |
 | Tests | Node's built-in test runner, end to end over HTTP |
 

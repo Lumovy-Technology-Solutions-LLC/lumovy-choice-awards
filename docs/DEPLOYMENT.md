@@ -5,7 +5,7 @@ The portal runs as **one Azure App Service (Linux, Node 22) web app** with a **b
 ```
 Employees ──HTTPS──> App Service (Node 22)  ──> SQLite file in /home/data  (or PostgreSQL Flexible Server)
                          │  /home (persistent) = uploaded files
-                         └──> Azure Communication Services Email (SMTP) for email
+                         └──> Microsoft Graph (sends as one Microsoft 365 mailbox) for email
 You (Windows) ─ git archive ─> Cloud Shell ─ build + az webapp deploy ─> App Service
 ```
 
@@ -15,7 +15,7 @@ You (Windows) ─ git archive ─> Cloud Shell ─ build + az webapp deploy ─>
 | Region | Central India | Employees are in India at launch |
 | Database | SQLite file in `/home/data/choice.db` (default, `DB=sqlite`), or PostgreSQL Flexible Server 16 (`DB=postgres`) | No extra cost and no extra service for up to about 250 employees and 50-100 voters per contest; PostgreSQL gives managed point-in-time restore and more than one instance |
 | Files | App Service persistent storage at `/home/data/uploads` | Shared across instances, no extra service for v1 |
-| Email | Azure Communication Services Email, through its SMTP endpoint (`smtp.azurecomm.net`) | Same Azure subscription, no mailbox or personal password, works with the built-in mail queue |
+| Email | Microsoft Graph `sendMail`, sending as one Microsoft 365 mailbox (for example `alerts@lumovy.com`) | No Azure email resources, no mailbox password, mail to colleagues is internal so it reaches the inbox, 30 a minute and 10,000 a day |
 | Secrets | App Settings (optionally Key Vault references) | No secrets in the repository |
 | Deploy | Manual zip deploy from Cloud Shell (`infra/deploy.sh`) | Simple, same as World Cup Arena. No pipeline for now |
 | Domain | Custom domain + free App Service managed certificate | HTTPS |
@@ -41,7 +41,7 @@ SUB=<subscription id> ADMIN_EMAIL=<first HR admin email> APP=lumovy-choice-award
 CUSTOM_URL=https://lumovy-choice-awards.azurewebsites.net bash infra/provision.sh
 ```
 
-It creates the resource group, the database (nothing to create for the default SQLite; a PostgreSQL server only if you pass `DB=postgres`), the Azure Communication Services email resources (with a free Azure managed sender domain and an Entra app that is allowed to send through it), the App Service plan and web app, sets HTTPS-only, TLS 1.2, health check `/api/health`, Always On and all app settings (including the SMTP settings). At the end it prints the first-admin sign-in. **Save the printed `APP_SECRET`, database password and SMTP password in your password manager or Key Vault.**
+It creates the resource group, the database (nothing to create for the default SQLite; a PostgreSQL server only if you pass `DB=postgres`), the App Service plan and web app, sets HTTPS-only, TLS 1.2, health check `/api/health`, Always On and all app settings. **It creates nothing else:** no Azure Communication Services and no Entra app. Email goes through your existing Microsoft 365 mailbox, so pass `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET` and `GRAPH_SENDER` to the command (see "Email through your own Microsoft 365 mailbox" below for creating the app). Without them the portal starts in email test mode and you add them later. At the end it prints the first-admin sign-in. **Save the printed `APP_SECRET` and database password in your password manager or Key Vault.**
 
 App settings it configures:
 
@@ -57,7 +57,7 @@ App settings it configures:
 | `MAIL_MAX_PER_MINUTE`, `MAIL_MAX_PER_HOUR` | Optional sending pace (default 20 a minute, no hourly cap). See "Sending limits" under Email |
 | `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`, `GRAPH_SENDER` | Only with `MAIL_TRANSPORT=graph` (send through a Microsoft 365 mailbox, see "Email through your own Microsoft 365 mailbox") |
 | `SMTP_HOST`, `SMTP_PORT` | `smtp.azurecomm.net`, `587` |
-| `SMTP_USER`, `SMTP_PASS` | `<ACS resource name>.<Entra app client id>.<tenant id>` and the Entra app client secret |
+| `SMTP_USER`, `SMTP_PASS` (only with `MAIL_TRANSPORT=smtp`) | `<ACS resource name>.<Entra app client id>.<tenant id>` and the Entra app client secret |
 | `BOOTSTRAP_ADMIN_*` | first HR admin (remove the password after first sign-in) |
 | `WEBSITES_ENABLE_APP_SERVICE_STORAGE` | `true` (keeps `/home` persistent) |
 
@@ -92,9 +92,9 @@ Do **not** use `-x "server/src/*"` like the World Cup Arena command: this app ru
 2. Add the domain, then **Add binding** with an **App Service Managed Certificate** (free).
 3. Make sure `APP_URL` is the final `https://` address, then restart the app.
 
-### Email (Azure Communication Services)
+### Email: the two ways to send
 
-The portal sends mail through its own queue and the ACS SMTP endpoint, so no one's personal mailbox or password is involved. `provision.sh` sets everything up with a free **Azure managed domain**, so emails come from `DoNotReply@<guid>.azurecomm.net` and work immediately. That address is fine for go-live, though some mail systems may put the first messages in spam.
+The portal sends all mail through its own queue. **The recommended way is Microsoft Graph with a Microsoft 365 mailbox** (the next section), and it is the only one `provision.sh` configures. The rest of this section describes the older **Azure Communication Services (ACS)** option, which `provision.sh` no longer creates. Use it only if you cannot use a Microsoft 365 mailbox: create the ACS resources yourself in the Azure portal and set `MAIL_TRANSPORT=smtp` with the `SMTP_*` settings. ACS on the free Azure managed domain sends from `DoNotReply@<guid>.azurecomm.net`, which some mail systems put in spam.
 
 **Send from your own address (recommended before the first real contest):**
 
@@ -142,11 +142,11 @@ The portal already marks every email as an automatic message and sends a plain-t
 - **Admin > Email outbox** shows how many are waiting, and has **Retry failed** to put earlier failed emails (for example from before this change) back in the queue.
 - To send faster, raise the limit with an Azure support request (Communication Services > Help > New support request > "Email rate limit increase"), then raise the two settings.
 
-**If `provision.sh` cannot create the Entra app** (no permission in your tenant): create an app registration and client secret in Entra ID, give it the **Communication and Email Service Owner** role on the `acs-choice-awards` resource (Access control (IAM)), then set `SMTP_USER` to `<ACS resource name>.<app client id>.<tenant id>` and `SMTP_PASS` to the client secret in App Service environment variables.
+**Setting up ACS SMTP by hand:** create an app registration and client secret in Entra ID, give it the **Communication and Email Service Owner** role on the `acs-choice-awards` resource (Access control (IAM)), then set `SMTP_USER` to `<ACS resource name>.<app client id>.<tenant id>` and `SMTP_PASS` to the client secret in App Service environment variables.
 
 **Switching email off:** HR admins can turn email off at any time in **Admin > Settings**, with no redeploy. There are two switches. **Email notifications** covers the contest started, vote confirmation, results, reminder and deadline emails; when off they are skipped (not stored), and anything still waiting in the outbox is cancelled. **Email sign-in codes** covers the 6-digit code login; when off, the sign-in page shows the password option only. Turn the second one off only if people have passwords (Settings shows how many active users do not), because they would otherwise be unable to sign in. Both are on by default. The setting is stored in the database, so it survives restarts and applies to every instance.
 
-**SMTP secret expiry:** `provision.sh` creates the Entra app secret with a **2-year** lifetime. Put a reminder on a shared team calendar for **1 month before it expires** (the date is shown in Entra ID > App registrations > `sp-<APP>-smtp` > Certificates & secrets). To renew, add a new secret there, put it in the `SMTP_PASS` environment variable of the web app, save and restart. If it is missed, emails fail (see **Settings > Email delivery** and **Email outbox**), voting and password sign-in keep working, and you can switch email off in Settings until it is fixed.
+**SMTP secret expiry (ACS only):** the Entra app secret you create for ACS has a lifetime you choose (2 years is typical). Put a reminder on a shared team calendar for **1 month before it expires** (the date is shown in Entra ID > App registrations > `sp-<APP>-smtp` > Certificates & secrets). To renew, add a new secret there, put it in the `SMTP_PASS` environment variable of the web app, save and restart. If it is missed, emails fail (see **Settings > Email delivery** and **Email outbox**), voting and password sign-in keep working, and you can switch email off in Settings until it is fixed.
 
 **Limits:** ACS applies sending rate limits to new resources (enough for a few thousand messages a month). If a contest start email to everyone is held back, the portal retries it, and **Admin > Email outbox** shows what is waiting.
 
@@ -217,7 +217,7 @@ Sized for the basic need: up to about 250 employees and up to 5 contests a month
 | App Service B1 (Always On, HTTPS, custom domain, free certificate) | about 15 USD |
 | Database: SQLite on the web app's storage (default) | 0 USD |
 | Database, only if you choose PostgreSQL Flexible B1ms + 32 GB | about 15-20 USD |
-| Email (Azure Communication Services, pay per email, about 0.25 USD per 1,000) | about 1 USD or less |
+| Email (Microsoft 365 mailbox through Graph: no Azure charge; ACS would be about 0.25 USD per 1,000) | 0 |
 | Application Insights, backup storage | about 2-4 USD |
 | **Total (SQLite)** | **about 18-22 USD per month** |
 | **Total (with PostgreSQL)** | **about 33-42 USD per month** |

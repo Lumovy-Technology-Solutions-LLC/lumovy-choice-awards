@@ -89,7 +89,7 @@ Shows how many contests are open, how many are waiting for you to publish, draft
 2. **Entries and audience**:
    - **Entry types**: photo/poster, writing, document (PDF/Word), video. Choose more than one if you like.
    - **Who takes part**: **Regional** (one region), **Selected regions** (two or more), or **Global** (every region that is switched on). *Everyone can see the contest; only these regions can vote and get its emails.*
-   - **Places to vote for**: default 3.
+   - **Places to vote for**: always **Top 3** (fixed; 1st = 3 points, 2nd = 2, 3rd = 1).
 3. **Schedule**: **Voting ends** date and time, and the time zone (India time by default). Optionally switch on **Show as "Coming soon"** so employees see the name and theme before voting opens (entries stay hidden).
 
 Press **Create contest**. You can change everything until you start it.
@@ -113,7 +113,7 @@ Open the contest and go to **Entries**. Employees send their work to HR outside 
 
 On the contest's **Overview**, the **Before you start** checklist shows what is still missing:
 - name and description filled in;
-- enough entries (at least the number of places, minimum 2);
+- enough entries (at least 3);
 - every entry has its file or text, a title and a description;
 - every entry has a competitor name;
 - the end date is set and in the future;
@@ -216,4 +216,4 @@ While either switch is off, a yellow bar at the top of every admin page reminds 
 | (HR) A document will not upload | Use `.pdf` or `.docx` (not older `.doc`), not password-protected, under 100 MB. |
 | Sign-in page has no "Email code" option | HR switched email sign-in codes off in Settings. Use your password, or ask HR. |
 | (HR) Emails are not going out, no errors | Email notifications may be switched off in Settings (look for the yellow bar). |
-| (HR) Emails show "captured" | The portal is in test mode; set `MAIL_TRANSPORT=smtp` and the SMTP settings (in production these are set by `infra/provision.sh`, see the deployment guide). |
+| (HR) Emails show "captured" | The portal is in test mode; set `MAIL_TRANSPORT=graph` and the Graph settings (`GRAPH_*`, `MAIL_FROM`; see the deployment guide, "Email through your own Microsoft 365 mailbox"). |
