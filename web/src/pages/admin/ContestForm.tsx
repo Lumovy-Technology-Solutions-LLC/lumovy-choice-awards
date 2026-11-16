@@ -132,7 +132,7 @@ export default function ContestForm({ contest, timezones }: { contest?: Contest;
 
   const schedule = (
     <div className="stack">
-      <div className="notice"><Lock size={16} style={{ flex: 'none', marginTop: 2 }} /> Voting does not open on a date. It opens the moment you click <b>Start contest</b>, after all entries are uploaded. It closes by itself at the time below.</div>
+      <div className="notice"><Lock size={16} style={{ flex: 'none', marginTop: 2 }} /><span>Voting does not open on a date. It opens the moment you click <b>Start contest</b>, after all entries are uploaded. It closes by itself at the time below.</span></div>
       <div className="form-row">
         <Field label="Voting ends" error={errors.endLocal} htmlFor="c-end" hint={locked && !finished ? 'To change the deadline while voting is open, use “Extend deadline” on the contest page.' : undefined}>
           <input id="c-end" type="datetime-local" className="input" value={f.endLocal} disabled={locked} aria-invalid={!!errors.endLocal} onChange={(e) => set('endLocal', e.target.value)} />
