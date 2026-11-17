@@ -30,9 +30,12 @@ r.get('/home', wrap(async (req, res) => {
   const featured = live[0] || null; // the banner shows only contests open for voting
 
   const myVotes = new Set((await db('voter_status').where({ user_id: req.user.id }).select('contest_id')).map((v) => v.contest_id));
+  const myDrafts = new Map((await db('ballot_drafts').where({ user_id: req.user.id })).map((d) => [d.contest_id, parseJson(d.picks, []).length]));
   const withMeta = async (c) => contestShape(c, {
     entryCount: Number((await db('entries').where({ contest_id: c.id }).count({ n: '*' }).first()).n),
-    hasVoted: myVotes.has(c.id), canVote: isEligible(req.user, c),
+    canVote: isEligible(req.user, c),
+    // same wording as the single-contest endpoint, so every slide shows Continue voting / See my vote correctly
+    myStatus: myVotes.has(c.id) ? 'submitted' : myDrafts.get(c.id) ? 'draft' : 'none',
   });
   const past = [];
   for (const c of done) {
