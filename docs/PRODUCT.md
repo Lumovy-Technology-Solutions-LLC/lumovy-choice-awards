@@ -40,7 +40,7 @@ Create -> Add entries -> Set schedule -> Voting (auto-closes) -> Check results -
 
 - **Everyone** can *see* every contest that is open, coming soon or finished, and its published results.
 - Only employees in the contest's **participating regions** can *vote* and receive its emails.
-- A contest is **Regional** (one region), **Selected regions** (several) or **Global** (every region that is switched on).
+- A contest is **Regional** (one region), **Selected regions** (several) or **Global** (every region that is switched on). It can also be limited by gender (women, men and/or other); gender is optional on each employee and people with none set are not included in a limited contest.
 - Every employee belongs to exactly one region. India is on at launch; other regions can be switched on later.
 
 ## Fairness rules

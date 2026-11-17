@@ -43,7 +43,7 @@ Tests: `npm test`.
 
 - **Employee portal:** email-code or password sign-in, contest home with a sliding banner of open contests and live countdown, anonymous voting with built-in viewers for images, PDF, Word, video and writing, save for later, review and submit, results with "Your vote", light/dark themes, mobile-first.
 - **HR admin:** step-by-step contest setup, copy a contest, entry upload, employee preview, Start contest with a readiness checklist, extend deadline, close early, live tracking and reminders, results review and publish, editable email templates, Excel import and export, activity log.
-- **Regions:** every user belongs to one region; contests are Regional, Selected regions or Global. Everyone can see every contest, only participating regions can vote.
+- **Regions:** every user belongs to one region; contests are Regional, Selected regions or Global. Everyone can see every contest, only participating regions can vote. A contest can also be limited by gender (optional field on each employee).
 
 ## Repository
 

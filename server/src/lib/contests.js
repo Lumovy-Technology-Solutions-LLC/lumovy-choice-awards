@@ -10,7 +10,7 @@ export const STATUS_LABEL = {
 
 export function hydrate(c) {
   if (!c) return c;
-  return { ...c, entry_types: parseJson(c.entry_types, ['image']), regions: parseJson(c.regions, ['IN']), announced: !!c.announced, is_global: !!c.is_global };
+  return { ...c, entry_types: parseJson(c.entry_types, ['image']), regions: parseJson(c.regions, ['IN']), announced: !!c.announced, is_global: !!c.is_global, genders: parseJson(c.genders, []) };
 }
 
 export async function getContest(id, { fresh = true } = {}) {
@@ -52,18 +52,36 @@ export const participates = (region, c) => participantRegions(c).includes(region
 export const scopeOf = (c) => (c.is_global ? 'global' : c.regions.length > 1 ? 'selected' : 'regional');
 export const regionLabel = (c) => (c.is_global ? 'All regions' : c.regions.map((r) => regionCache.names[r] || r).join(', '));
 
-export const isEligible = (user, c) => !!user && user.active && participates(user.region, c);
+// Gender is optional on a person. A contest with no genders chosen is open to everyone in its regions;
+// otherwise only people whose gender is one of the chosen ones take part (people with no gender set are not included).
+export const GENDERS = ['female', 'male', 'other'];
+export const GENDER_NAME = { female: 'Female', male: 'Male', other: 'Other' };
+export const genderOk = (gender, c) => !c.genders?.length || c.genders.includes(gender);
+export const genderLabel = (c) => (c.genders?.length ? c.genders.map((g) => GENDER_NAME[g]).join(' and ') : '');
+
+export const isEligible = (user, c) => !!user && user.active && participates(user.region, c) && genderOk(user.gender, c);
+
+/** Active people who take part: in the contest's regions and, when it is limited by gender, of those genders. */
+export function participantsQuery(c) {
+  return db('users').where({ active: true }).whereIn('region', participantRegions(c))
+    .modify((qb) => { if (c.genders?.length) qb.whereIn('gender', c.genders); });
+}
 
 export async function regionRecipients(c) {
-  const users = await db('users').where({ active: true }).whereIn('region', participantRegions(c)).select('id', 'name', 'email', 'region');
-  return users;
+  return participantsQuery(c).select('id', 'name', 'email', 'region');
+}
+
+// What employees get to see of a contest. Who a contest is limited by gender is for HR only, so it is left out here.
+export function publicContestShape(c, extra = {}) {
+  const { genders, genderLabel: _g, ...rest } = contestShape(c, extra);
+  return rest;
 }
 
 export function contestShape(c, extra = {}) {
   return {
     id: c.id, name: c.name, theme: c.theme, description: c.description, rules: c.rules,
     bannerUrl: c.banner_file ? `/api/files/banners/${c.id}` : null,
-    entryTypes: c.entry_types, regions: c.regions, isGlobal: c.is_global, scope: scopeOf(c), regionLabel: regionLabel(c), places: c.places,
+    entryTypes: c.entry_types, regions: c.regions, isGlobal: c.is_global, scope: scopeOf(c), regionLabel: regionLabel(c), genders: c.genders ?? [], genderLabel: genderLabel(c), places: c.places,
     status: c.status, statusLabel: STATUS_LABEL[c.status], announced: c.announced,
     timezone: c.timezone, endAt: c.end_at, endLocal: utcIsoToLocal(c.end_at, c.timezone),
     deadlineLabel: formatDeadline(c.end_at, c.timezone),
@@ -99,7 +117,7 @@ export async function resultsPayload(c) {
     points: t.points, firsts: t.firsts, seconds: t.seconds, thirds: t.thirds, place: t.place, shared: t.shared,
   }));
   return {
-    contest: contestShape(c),
+    contest: publicContestShape(c),
     totalVoters: await voterCount(c.id),
     winners: rows.filter((r) => r.place <= 3 && r.points > 0),
     others: rows.filter((r) => !(r.place <= 3 && r.points > 0)),

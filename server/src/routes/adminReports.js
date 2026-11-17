@@ -2,7 +2,7 @@ import { Router } from 'express';
 import ExcelJS from 'exceljs';
 import { db, parseJson } from '../db/index.js';
 import { audit } from '../lib/audit.js';
-import { getContest, participantRegions, contestShape, entryShape, regionRecipients, resultsPayload, STATUS_LABEL, hydrate } from '../lib/contests.js';
+import { getContest, contestShape, entryShape, regionRecipients, participantsQuery, resultsPayload, STATUS_LABEL, hydrate } from '../lib/contests.js';
 import { tally } from '../lib/scoring.js';
 import { config } from '../config.js';
 import { wrap, notFound, conflict, entryLabel } from '../lib/util.js';
@@ -54,7 +54,7 @@ r.get('/contests/:id/dashboard', wrap(async (req, res) => {
 r.get('/contests/:id/non-voters', wrap(async (req, res) => {
   const c = await getContest(req.params.id);
   const voted = new Set((await db('voter_status').where({ contest_id: c.id }).select('user_id')).map((v) => v.user_id));
-  const users = (await db('users').where({ active: true }).whereIn('region', participantRegions(c)).orderBy('name')).filter((u) => !voted.has(u.id));
+  const users = (await participantsQuery(c).orderBy('name')).filter((u) => !voted.has(u.id));
   res.json({ users: users.map((u) => ({ id: u.id, name: u.name, email: u.email, team: u.team })) });
 }));
 

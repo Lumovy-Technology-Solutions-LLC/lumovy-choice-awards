@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { db, nowIso, parseJson } from '../db/index.js';
 import { config } from '../config.js';
 import { audit } from '../lib/audit.js';
-import { getContest, closeContest, hydrate, contestShape, entryShape, isComplete, regionRecipients, resultsPayload } from '../lib/contests.js';
+import { getContest, closeContest, hydrate, contestShape, entryShape, isComplete, regionRecipients, resultsPayload, GENDERS } from '../lib/contests.js';
 import { processUpload, saveBanner, removeFiles, ENTRY_TYPES, typeForExt } from '../lib/files.js';
 import { getFlags } from '../lib/settings.js';
 import { backupNow } from '../lib/backup.js';
@@ -34,6 +34,7 @@ const contestBody = z.object({
   entryTypes: z.array(z.enum(ENTRY_TYPES)).min(1, 'Choose at least one entry type.'),
   scope: z.enum(['regional', 'selected', 'global']).default('regional'),
   regions: z.array(z.string()).default([]),
+  genders: z.array(z.enum(GENDERS)).default([]),
   timezone: z.enum(TZ).default('Asia/Kolkata'),
   announced: z.boolean().default(false),
   endLocal: z.string().optional().nullable(),
@@ -54,7 +55,7 @@ r.post('/contests', wrap(async (req, res) => {
   const now = nowIso();
   const [id] = await db('contests').insert({
     name: b.name, theme: b.theme, description: b.description, rules: b.rules,
-    entry_types: JSON.stringify(b.entryTypes), regions: JSON.stringify(b.regions), is_global: b.scope === 'global', places: PLACES,
+    entry_types: JSON.stringify(b.entryTypes), regions: JSON.stringify(b.regions), genders: JSON.stringify([...new Set(b.genders)]), is_global: b.scope === 'global', places: PLACES,
     timezone: b.timezone, announced: b.announced, end_at: b.endLocal ? localToUtcIso(b.endLocal, b.timezone) : null,
     created_by: req.user.id, created_at: now, updated_at: now,
   }).returning('id').then((x) => x.map((v) => v.id ?? v));
@@ -78,7 +79,7 @@ r.post('/contests/:id/copy', wrap(async (req, res) => {
   const now = nowIso();
   const [row] = await db('contests').insert({
     name: `${src.name} (copy)`, theme: src.theme, description: src.description, rules: src.rules, banner_file: null,
-    entry_types: JSON.stringify(src.entry_types), regions: JSON.stringify(src.regions), is_global: src.is_global, places: PLACES,
+    entry_types: JSON.stringify(src.entry_types), regions: JSON.stringify(src.regions), genders: JSON.stringify(src.genders), is_global: src.is_global, places: PLACES,
     timezone: src.timezone, copied_from: src.id, created_by: req.user.id, created_at: now, updated_at: now,
   }).returning('id');
   const id = row.id ?? row;
@@ -104,7 +105,7 @@ async function readiness(c) {
     { key: 'complete', ok: entries.length > 0 && entries.every(isComplete), label: 'Every entry has a file or text, a title and a description' },
     { key: 'names', ok: entries.length > 0 && entries.every((e) => e.competitor_name.trim()), label: 'Every entry has the competitor’s name (hidden from voters)' },
     { key: 'deadline', ok: !!c.end_at && new Date(c.end_at) > new Date(), label: 'Voting end date and time is set and in the future' },
-    { key: 'region', ok: regionsOk && recips.length > 0, label: `Region has eligible employees (${recips.length} will be emailed)` },
+    { key: 'region', ok: regionsOk && recips.length > 0, label: `Audience has eligible employees (${recips.length} will be emailed)` },
   ];
   return { checks, ready: checks.every((x) => x.ok), recipients: recips.length };
 }
@@ -129,7 +130,7 @@ r.put('/contests/:id', wrap(async (req, res) => {
   await assertRegions(b.regions);
   await db('contests').where({ id: c.id }).update({
     name: b.name, theme: b.theme, description: b.description, rules: b.rules,
-    entry_types: JSON.stringify(b.entryTypes), regions: JSON.stringify(b.regions), is_global: b.scope === 'global', places: PLACES,
+    entry_types: JSON.stringify(b.entryTypes), regions: JSON.stringify(b.regions), genders: JSON.stringify([...new Set(b.genders)]), is_global: b.scope === 'global', places: PLACES,
     timezone: b.timezone, announced: b.announced,
     end_at: b.endLocal ? localToUtcIso(b.endLocal, b.timezone) : null, updated_at: nowIso(),
   });

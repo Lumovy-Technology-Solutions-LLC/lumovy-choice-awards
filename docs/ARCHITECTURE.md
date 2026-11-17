@@ -54,7 +54,7 @@ One Node process serves the API and, in production, the built web app (`web/dist
 | Table | Purpose |
 | --- | --- |
 | `regions` | Region code, name, time zone, switched on/off |
-| `users` | Name, email, team, **region (required)**, role, active, password hash, lockout fields |
+| `users` | Name, email, team, **region (required)**, optional gender, role, active, password hash, lockout fields |
 | `otp_codes` | Hashed one-time sign-in codes with expiry and attempt count |
 | `contests` | Name, theme, rules, entry types, regions, `is_global`, places, status, end time, banner |
 | `entries` | Entry number (permanent), type, title, description, alt text, stored file keys, **competitor name** |

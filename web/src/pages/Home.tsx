@@ -147,7 +147,7 @@ export default function Home() {
                 {x.status === 'closed' && <p className="sub" style={{ marginTop: 18 }}>Voting is closed. Results will be published here soon.</p>}
 
                 <div className="hero-actions">
-                  {x.status === 'live' && x.canVote === false && <span className="pill" style={{ background: 'rgba(255,255,255,.16)', color: '#fff', padding: '10px 16px' }}><Lock size={14} /> Open to {x.regionLabel} · view only</span>}
+                  {x.status === 'live' && x.canVote === false && <span className="pill" style={{ background: 'rgba(255,255,255,.16)', color: '#fff', padding: '10px 16px' }}><Lock size={14} /> {x.viewOnlyNote || `Open to ${x.regionLabel}`} · view only</span>}
                   {x.status === 'live' && x.canVote !== false && x.myStatus !== 'submitted' && <Link tabIndex={x === c ? 0 : -1} className="btn btn-white" to={`/contests/${x.id}/vote`}>{x.myStatus === 'draft' ? 'Continue voting' : 'Start voting'}</Link>}
                   {x.status === 'live' && x.canVote !== false && x.myStatus === 'submitted' && <Link tabIndex={x === c ? 0 : -1} className="btn btn-white" to={`/contests/${x.id}/vote`}><CheckCircle2 size={16} /> See my vote</Link>}
                   {x.status === 'published' && <Link tabIndex={x === c ? 0 : -1} className="btn btn-white" to={`/contests/${x.id}/results`}><Trophy size={16} /> See the winners</Link>}

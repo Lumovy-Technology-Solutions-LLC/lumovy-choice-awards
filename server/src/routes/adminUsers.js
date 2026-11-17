@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { db, nowIso } from '../db/index.js';
 import { config } from '../config.js';
 import { audit } from '../lib/audit.js';
-import { refreshRegions } from '../lib/contests.js';
+import { refreshRegions, GENDERS } from '../lib/contests.js';
 import { wrap, bad, notFound, conflict, normEmail, isEmail } from '../lib/util.js';
 
 const r = Router();
@@ -16,7 +16,7 @@ fs.mkdirSync(tmpDir, { recursive: true });
 const upload = multer({ dest: tmpDir, limits: { fileSize: 10 * 1024 * 1024 } });
 
 const shape = (u) => ({
-  id: u.id, name: u.name, email: u.email, team: u.team, region: u.region, role: u.role,
+  id: u.id, name: u.name, email: u.email, team: u.team, region: u.region, gender: u.gender ?? null, role: u.role,
   active: !!u.active, hasPassword: !!u.password_hash, lastLoginAt: u.last_login_at,
 });
 
@@ -74,11 +74,12 @@ r.post('/regions/bulk-delete', wrap(async (req, res) => {
 
 // ---- users ----
 r.get('/users', wrap(async (req, res) => {
-  const { q = '', region = '', status = '', role = '', page = '1', pageSize = '50' } = req.query;
+  const { q = '', region = '', gender = '', status = '', role = '', page = '1', pageSize = '50' } = req.query;
   const ps = Math.min(200, Math.max(10, Number(pageSize) || 50));
   const base = db('users').modify((qb) => {
     if (q) qb.where((w) => w.whereRaw('lower(name) like ?', [`%${String(q).toLowerCase()}%`]).orWhereRaw('lower(email) like ?', [`%${String(q).toLowerCase()}%`]).orWhereRaw('lower(team) like ?', [`%${String(q).toLowerCase()}%`]));
     if (region) qb.where({ region });
+    if (gender === 'none') qb.whereNull('gender'); else if (GENDERS.includes(gender)) qb.where({ gender });
     if (status === 'active') qb.where({ active: true });
     if (status === 'inactive') qb.where({ active: false });
     if (role) qb.where({ role });
@@ -98,6 +99,7 @@ const userBody = z.object({
   email: z.string().trim().refine(isEmail, 'Enter a valid work email.'),
   team: z.string().trim().max(120).default(''),
   region: z.string().trim().min(2),
+  gender: z.enum(GENDERS).nullable().optional(), // optional: left empty when not given
   role: z.enum(['employee', 'admin']).default('employee'),
   active: z.boolean().default(true),
 });
@@ -144,6 +146,14 @@ r.put('/users/:id', wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// Set (or clear) gender for several people at once.
+r.post('/users/bulk-gender', wrap(async (req, res) => {
+  const { ids, gender } = z.object({ ids: z.array(z.number().int()).min(1, 'Choose at least one person.').max(2000), gender: z.enum(GENDERS).nullable() }).parse(req.body);
+  const n = await db('users').whereIn('id', [...new Set(ids)]).update({ gender });
+  await audit(req.user, 'Employee gender set', null, { count: n, gender });
+  res.json({ updated: n });
+}));
+
 // Delete several people at once. Anyone who has voted or saved a ballot is kept (switch them off instead),
 // so turnout history stays correct. You cannot delete yourself or the last active HR admin.
 r.post('/users/bulk-delete', wrap(async (req, res) => {
@@ -171,7 +181,7 @@ r.post('/users/bulk-delete', wrap(async (req, res) => {
 }));
 
 // ---- spreadsheet import ----
-const HEAD = { name: ['name', 'full name', 'employee name'], email: ['email', 'e-mail', 'work email', 'email address'], team: ['team', 'department', 'dept'], region: ['region', 'country', 'location'] };
+const HEAD = { name: ['name', 'full name', 'employee name'], email: ['email', 'e-mail', 'work email', 'email address'], team: ['team', 'department', 'dept'], region: ['region', 'country', 'location'], gender: ['gender', 'gender (optional)', 'sex'] };
 const findCol = (headers, names) => headers.findIndex((h) => names.includes(String(h || '').trim().toLowerCase()));
 
 r.post('/users/import', upload.single('file'), wrap(async (req, res) => {
@@ -185,7 +195,7 @@ r.post('/users/import', upload.single('file'), wrap(async (req, res) => {
     ws.eachRow((row) => rows.push(row.values.slice(1).map((v) => (v && typeof v === 'object' ? v.text ?? v.result ?? '' : v))));
     if (rows.length < 2) throw bad('The spreadsheet needs a header row (name, email, team, region) and at least one employee.');
     const h = rows[0];
-    const col = { name: findCol(h, HEAD.name), email: findCol(h, HEAD.email), team: findCol(h, HEAD.team), region: findCol(h, HEAD.region) };
+    const col = { name: findCol(h, HEAD.name), email: findCol(h, HEAD.email), team: findCol(h, HEAD.team), region: findCol(h, HEAD.region), gender: findCol(h, HEAD.gender) };
     if (col.name < 0 || col.email < 0 || col.region < 0) throw bad('The first row must have “name” and “email” columns (team is optional). Every employee must have a region.');
     if (rows.length > 20001) throw bad('Please import at most 20,000 people at a time.');
 
@@ -209,14 +219,21 @@ r.post('/users/import', upload.single('file'), wrap(async (req, res) => {
       const region = regionBy(rawRegion);
       if (!region) { out.errors.push({ line, error: `Region “${rawRegion}” is not set up` }); return; }
       const team = col.team >= 0 ? String(row[col.team] ?? '').trim() : '';
-      if (existing.has(email)) updates.push({ id: existing.get(email), name, team, region });
-      else inserts.push({ name, email, team, region, role: 'employee', active: true, created_at: nowIso() });
+      // gender is optional: empty keeps what is already stored; female / male / other (also f, m, woman, man) are accepted
+      let gender;
+      const rawGender = col.gender >= 0 ? String(row[col.gender] ?? '').trim().toLowerCase() : '';
+      if (rawGender) {
+        gender = { f: 'female', female: 'female', woman: 'female', women: 'female', m: 'male', male: 'male', man: 'male', men: 'male', other: 'other', others: 'other', 'non-binary': 'other', nonbinary: 'other' }[rawGender];
+        if (!gender) { out.errors.push({ line, error: `Gender “${rawGender}” is not recognised (use female, male or other, or leave it empty)` }); return; }
+      }
+      if (existing.has(email)) updates.push({ id: existing.get(email), name, team, region, ...(gender ? { gender } : {}) });
+      else inserts.push({ name, email, team, region, gender: gender ?? null, role: 'employee', active: true, created_at: nowIso() });
     });
     out.created = inserts.length; out.updated = updates.length;
     if (!dryRun) {
       await db.transaction(async (t) => {
         if (inserts.length) await t.batchInsert('users', inserts, 100);
-        for (const u of updates) await t('users').where({ id: u.id }).update({ name: u.name, team: u.team, region: u.region });
+        for (const u of updates) await t('users').where({ id: u.id }).update({ name: u.name, team: u.team, region: u.region, ...(u.gender ? { gender: u.gender } : {}) });
         await audit(req.user, 'Employees imported', null, { created: out.created, updated: out.updated, errors: out.errors.length }, t);
       });
     }
@@ -227,8 +244,8 @@ r.post('/users/import', upload.single('file'), wrap(async (req, res) => {
 r.get('/users/template.xlsx', wrap(async (_req, res) => {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Employees');
-  ws.columns = [{ header: 'name', width: 28 }, { header: 'email', width: 36 }, { header: 'team', width: 22 }, { header: 'region', width: 12 }];
-  ws.addRow(['Asha Rao', 'asha.rao@lumovy.com', 'Engineering', 'IN']);
+  ws.columns = [{ header: 'name', width: 28 }, { header: 'email', width: 36 }, { header: 'team', width: 22 }, { header: 'region', width: 12 }, { header: 'gender (optional)', width: 18 }];
+  ws.addRow(['Asha Rao', 'asha.rao@lumovy.com', 'Engineering', 'IN', 'female']);
   ws.getRow(1).font = { bold: true };
   res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': 'attachment; filename="employee-import-template.xlsx"' });
   await wb.xlsx.write(res); res.end();

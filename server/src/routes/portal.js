@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { db, nowIso, parseJson } from '../db/index.js';
 import { requireAuth } from '../lib/auth.js';
-import { getContest, contestShape, entryShape, isEligible, regionLabel, resultsPayload, hydrate, STATUS_LABEL } from '../lib/contests.js';
+import { getContest, publicContestShape as contestShape, entryShape, isEligible, participates, regionLabel, resultsPayload, hydrate, STATUS_LABEL } from '../lib/contests.js';
 import { voterCount, pointsFor } from '../lib/scoring.js';
 import { queueTemplated, listBlock } from '../lib/mail.js';
 import { wrap, bad, forbidden, notFound, conflict, entryLabel, encryptReceipt, decryptReceipt } from '../lib/util.js';
@@ -33,7 +33,7 @@ r.get('/home', wrap(async (req, res) => {
   const myDrafts = new Map((await db('ballot_drafts').where({ user_id: req.user.id })).map((d) => [d.contest_id, parseJson(d.picks, []).length]));
   const withMeta = async (c) => contestShape(c, {
     entryCount: Number((await db('entries').where({ contest_id: c.id }).count({ n: '*' }).first()).n),
-    canVote: isEligible(req.user, c),
+    canVote: isEligible(req.user, c), viewOnlyNote: viewOnlyNote(req.user, c),
     // same wording as the single-contest endpoint, so every slide shows Continue voting / See my vote correctly
     myStatus: myVotes.has(c.id) ? 'submitted' : myDrafts.get(c.id) ? 'draft' : 'none',
   });
@@ -50,6 +50,9 @@ r.get('/home', wrap(async (req, res) => {
   });
 }));
 
+// Why a person can only watch a contest, without telling employees which gender it is limited to.
+const viewOnlyNote = (user, c) => (isEligible(user, c) ? '' : participates(user.region, c) ? 'Not open to you' : `Open to ${regionLabel(c)}`);
+
 async function loadVisible(req) {
   const c = await getContest(req.params.id);
   if (c.status === 'draft' && !c.announced) throw notFound('Contest not found');
@@ -57,7 +60,7 @@ async function loadVisible(req) {
 }
 async function loadParticipant(req) {
   const c = await loadVisible(req);
-  if (!isEligible(req.user, c)) throw forbidden(`This contest is open to employees in ${regionLabel(c)}. You can follow it, but you cannot vote in it.`, 'not_eligible');
+  if (!isEligible(req.user, c)) throw forbidden((c.genders?.length ? 'This contest is not open to you. You can follow it, but you cannot vote in it.' : `This contest is open to employees in ${regionLabel(c)}. You can follow it, but you cannot vote in it.`), 'not_eligible');
   return c;
 }
 
@@ -68,7 +71,7 @@ r.get('/contests/:id', wrap(async (req, res) => {
   const entryCount = Number((await db('entries').where({ contest_id: c.id }).count({ n: '*' }).first()).n);
   res.json({
     serverTime: nowIso(),
-    contest: contestShape(c, { entryCount, canVote: isEligible(req.user, c), myStatus: voted ? 'submitted' : draft && parseJson(draft.picks, []).length ? 'draft' : 'none' }),
+    contest: contestShape(c, { entryCount, canVote: isEligible(req.user, c), viewOnlyNote: viewOnlyNote(req.user, c), myStatus: voted ? 'submitted' : draft && parseJson(draft.picks, []).length ? 'draft' : 'none' }),
   });
 }));
 

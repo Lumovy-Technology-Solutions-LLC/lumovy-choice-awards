@@ -17,9 +17,9 @@ const TYPES: { key: EntryType; label: string; hint: string; icon: any }[] = [
 ];
 
 type Scope = 'regional' | 'selected' | 'global';
-interface FormState { scope: Scope; name: string; theme: string; description: string; rules: string; entryTypes: EntryType[]; regions: string[]; places: number; timezone: string; announced: boolean; endLocal: string }
-const blank: FormState = { scope: 'regional', name: '', theme: '', description: '', rules: '', entryTypes: ['image'], regions: ['IN'], places: 3, timezone: 'Asia/Kolkata', announced: false, endLocal: '' };
-const fromContest = (c: Contest): FormState => ({ scope: c.scope, name: c.name, theme: c.theme, description: c.description, rules: c.rules, entryTypes: c.entryTypes, regions: c.regions, places: c.places, timezone: c.timezone, announced: c.announced, endLocal: c.endLocal });
+interface FormState { scope: Scope; name: string; theme: string; description: string; rules: string; entryTypes: EntryType[]; regions: string[]; genders: string[]; places: number; timezone: string; announced: boolean; endLocal: string }
+const blank: FormState = { scope: 'regional', name: '', theme: '', description: '', rules: '', entryTypes: ['image'], regions: ['IN'], genders: [], places: 3, timezone: 'Asia/Kolkata', announced: false, endLocal: '' };
+const fromContest = (c: Contest): FormState => ({ scope: c.scope, name: c.name, theme: c.theme, description: c.description, rules: c.rules, entryTypes: c.entryTypes, regions: c.regions, genders: c.genders ?? [], places: c.places, timezone: c.timezone, announced: c.announced, endLocal: c.endLocal });
 
 function BannerPicker({ current, file, onFile, disabled }: { current?: string | null; file: File | null; onFile: (f: File | null) => void; disabled?: boolean }) {
   const ref = useRef<HTMLInputElement>(null);
@@ -126,6 +126,14 @@ export default function ContestForm({ contest, timezones }: { contest?: Contest;
           ))}
         </div>
       </Field>}
+      <Field label="Open to" hint={f.genders.length ? 'Only people whose gender is set to one of these can vote and get the emails. People with no gender on file are left out.' : 'Everyone in the regions above. Choose one or more to open the contest only to those employees.'}>
+        <div className="chips" role="group" aria-label="Gender">
+          <button type="button" className="chip" disabled={locked} aria-pressed={f.genders.length === 0} onClick={() => set('genders', [])}>Everyone</button>
+          {([['female', 'Female'], ['male', 'Male'], ['other', 'Other']] as const).map(([k, label]) => (
+            <button type="button" key={k} className="chip" disabled={locked} aria-pressed={f.genders.includes(k)} onClick={() => set('genders', toggle(f.genders, k))}>{label}</button>
+          ))}
+        </div>
+      </Field>
       <Field label="Places to vote for" hint="Every contest is a top 3: each voter ranks three different entries. 1st gets 3 points, 2nd gets 2 and 3rd gets 1."><div className="badge brand" style={{ width: 'fit-content' }}>Top 3</div></Field>
     </div>
   );

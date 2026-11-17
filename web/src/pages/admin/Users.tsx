@@ -5,16 +5,18 @@ import { api } from '../../api';
 import { ago, errMsg, useToast } from '../../lib';
 import { Empty, ErrorState, Field, Modal, PageLoader, Spinner, Switch, Tabs, useConfirm } from '../../components/ui';
 
-interface U { id: number; name: string; email: string; team: string; region: string; role: 'employee' | 'admin'; active: boolean; hasPassword: boolean; lastLoginAt: string | null }
+interface U { id: number; name: string; email: string; team: string; region: string; gender: Gender | null; role: 'employee' | 'admin'; active: boolean; hasPassword: boolean; lastLoginAt: string | null }
+type Gender = 'female' | 'male' | 'other';
+const GENDER_NAME: Record<Gender, string> = { female: 'Female', male: 'Male', other: 'Other' };
 interface BulkResult { deleted: number; skipped: { id: number | string; name: string; reason: string }[] }
 interface Region { code: string; name: string; timezone: string; enabled: boolean; employees: number }
 
 function UserModal({ user, regions, onClose, onSaved }: { user: U | null; regions: Region[]; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
-  const [f, setF] = useState({ name: user?.name ?? '', email: user?.email ?? '', team: user?.team ?? '', region: user?.region ?? regions.find((r) => r.enabled)?.code ?? 'IN', role: user?.role ?? 'employee', active: user?.active ?? true });
+  const [f, setF] = useState({ name: user?.name ?? '', email: user?.email ?? '', team: user?.team ?? '', region: user?.region ?? regions.find((r) => r.enabled)?.code ?? 'IN', gender: (user?.gender ?? '') as Gender | '', role: user?.role ?? 'employee', active: user?.active ?? true });
   const [err, setErr] = useState('');
   const m = useMutation({
-    mutationFn: () => (user ? api.put(`/api/admin/users/${user.id}`, f) : api.post('/api/admin/users', f)),
+    mutationFn: () => (user ? api.put(`/api/admin/users/${user.id}`, { ...f, gender: f.gender || null }) : api.post('/api/admin/users', { ...f, gender: f.gender || null })),
     onSuccess: () => { toast(user ? 'Saved.' : 'Person added.'); onSaved(); }, onError: (e) => setErr(errMsg(e)),
   });
   return (
@@ -28,6 +30,9 @@ function UserModal({ user, regions, onClose, onSaved }: { user: U | null; region
           <Field label="Team" htmlFor="u-team"><input id="u-team" className="input" value={f.team} onChange={(e) => setF({ ...f, team: e.target.value })} /></Field>
           <Field label="Region" htmlFor="u-reg"><select id="u-reg" className="input" value={f.region} onChange={(e) => setF({ ...f, region: e.target.value })}>{regions.map((r) => <option key={r.code} value={r.code}>{r.name}{r.enabled ? '' : ' (off)'}</option>)}</select></Field>
         </div>
+        <Field label="Gender (optional)" htmlFor="u-gender" hint="Only used to open a contest to women, men or another group. Leave empty if not known.">
+          <select id="u-gender" className="input" value={f.gender} onChange={(e) => setF({ ...f, gender: e.target.value as Gender | '' })}><option value="">Not specified</option>{(Object.keys(GENDER_NAME) as Gender[]).map((g) => <option key={g} value={g}>{GENDER_NAME[g]}</option>)}</select>
+        </Field>
         <div className="row between card" style={{ padding: 14 }}>
           <div><b style={{ fontWeight: 500 }}>HR admin</b><div className="hint">Can run contests and manage people, as well as vote.</div></div>
           <Switch checked={f.role === 'admin'} onChange={(v) => setF({ ...f, role: v ? 'admin' : 'employee' })} label="HR admin" />
@@ -59,7 +64,7 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
     <Modal wide title="Import employees from a spreadsheet" onClose={onClose}
       footer={<><button className="btn btn-ghost" onClick={onClose}>{res && !res.dryRun ? 'Close' : 'Cancel'}</button>{res?.dryRun && <button className="btn btn-primary" disabled={run.isPending || (res.created + res.updated === 0)} onClick={() => run.mutate(false)}>{run.isPending ? <Spinner /> : null} Import {res.created + res.updated} people</button>}</>}>
       <div className="stack">
-        <p className="hint">Use an Excel (.xlsx) or CSV file with the columns <b>name, email, team, region</b>. Existing people (matched by email) are updated. People missing from the file are left alone.</p>
+        <p className="hint">Use an Excel (.xlsx) or CSV file with the columns <b>name, email, team, region</b> and, if you wish, <b>gender</b> (female, male or other; leave empty if not known). Existing people (matched by email) are updated. People missing from the file are left alone.</p>
         <div className="row"><a className="btn btn-ghost btn-sm" href="/api/admin/users/template.xlsx"><Download size={14} /> Download template</a></div>
         <div className="drop big" onClick={() => ref.current?.click()} role="button" tabIndex={0} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && ref.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) setFile(f); }}>
           <input ref={ref} type="file" hidden accept=".xlsx,.csv" onChange={(e) => choose(e.target.files?.[0])} />
@@ -78,13 +83,16 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
   );
 }
 
-function SelectionBar({ count, noun, busy, onDelete, onClear }: { count: number; noun: string; busy: boolean; onDelete: () => void; onClear: () => void }) {
+function SelectionBar({ count, noun, busy, onDelete, onClear, onGender }: { count: number; noun: string; busy: boolean; onDelete: () => void; onClear: () => void; onGender?: (g: Gender | null) => void }) {
   if (!count) return null;
   return (
     <div className="notice" role="status" style={{ alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
       <span><b>{count}</b> {noun} selected</span>
       <span className="row" style={{ gap: 8 }}>
         <button className="btn btn-ghost btn-sm" onClick={onClear}><X size={14} /> Clear</button>
+        {onGender && <select className="input" style={{ width: 'auto', minHeight: 34 }} aria-label="Set gender for selected people" value="" onChange={(e) => { if (e.target.value) onGender(e.target.value === 'none' ? null : (e.target.value as Gender)); }}>
+          <option value="">Set gender…</option>{(Object.keys(GENDER_NAME) as Gender[]).map((g) => <option key={g} value={g}>{GENDER_NAME[g]}</option>)}<option value="none">Not specified</option>
+        </select>}
         <button className="btn btn-danger btn-sm" disabled={busy} onClick={onDelete}>{busy ? <Spinner /> : <Trash2 size={14} />} Delete selected</button>
       </span>
     </div>
@@ -141,19 +149,24 @@ export default function Users() {
   const qc = useQueryClient(); const toast = useToast();
   const [tab, setTab] = useState<'people' | 'regions'>('people');
   const [q, setQ] = useState(''); const [dq, setDq] = useState('');
-  const [region, setRegion] = useState(''); const [status, setStatus] = useState(''); const [role, setRole] = useState(''); const [page, setPage] = useState(1);
+  const [region, setRegion] = useState(''); const [gender, setGender] = useState(''); const [status, setStatus] = useState(''); const [role, setRole] = useState(''); const [page, setPage] = useState(1);
   const [edit, setEdit] = useState<U | 'new' | null>(null); const [imp, setImp] = useState(false);
   const [sel, setSel] = useState<number[]>([]); const [skipped, setSkipped] = useState<BulkResult | null>(null);
   const [confirm, confirmNode] = useConfirm();
   useEffect(() => { const t = setTimeout(() => { setDq(q); setPage(1); }, 300); return () => clearTimeout(t); }, [q]);
   const regionsQ = useQuery({ queryKey: ['admin-regions'], queryFn: () => api.get<{ regions: Region[] }>('/api/admin/regions') });
-  const list = useQuery({ queryKey: ['admin-users', dq, region, status, role, page], placeholderData: keepPreviousData, queryFn: () => api.get<{ total: number; pageSize: number; users: U[]; totals: { active: number; inactive: number; admins: number } }>(`/api/admin/users?q=${encodeURIComponent(dq)}&region=${region}&status=${status}&role=${role}&page=${page}`) });
+  const list = useQuery({ queryKey: ['admin-users', dq, region, gender, status, role, page], placeholderData: keepPreviousData, queryFn: () => api.get<{ total: number; pageSize: number; users: U[]; totals: { active: number; inactive: number; admins: number } }>(`/api/admin/users?q=${encodeURIComponent(dq)}&region=${region}&gender=${gender}&status=${status}&role=${role}&page=${page}`) });
   const refresh = () => { qc.invalidateQueries({ queryKey: ['admin-users'] }); qc.invalidateQueries({ queryKey: ['admin-regions'] }); };
   const toggleActive = useMutation({ mutationFn: (u: U) => api.put(`/api/admin/users/${u.id}`, { active: !u.active }), onSuccess: refresh, onError: (e) => toast(errMsg(e), 'error') });
   const regions = regionsQ.data?.regions ?? [];
   const del = useMutation({
     mutationFn: (ids: number[]) => api.post<BulkResult>('/api/admin/users/bulk-delete', { ids }),
     onSuccess: (r) => { setSel([]); setSkipped(r); refresh(); if (r.deleted) toast(`${r.deleted} ${r.deleted === 1 ? 'person' : 'people'} deleted.`); },
+    onError: (e) => toast(errMsg(e), 'error'),
+  });
+  const setGen = useMutation({
+    mutationFn: (g: Gender | null) => api.post<{ updated: number }>('/api/admin/users/bulk-gender', { ids: sel, gender: g }),
+    onSuccess: (r) => { setSel([]); refresh(); toast(`Gender updated for ${r.updated} ${r.updated === 1 ? 'person' : 'people'}.`); },
     onError: (e) => toast(errMsg(e), 'error'),
   });
   const askDelete = async () => { if (await confirm({ title: `Delete ${sel.length} ${sel.length === 1 ? 'person' : 'people'}?`, danger: true, confirm: 'Delete', body: 'They are removed for good and can no longer sign in. Anyone who has already voted, you, and the last HR admin are kept. To stop someone voting but keep their history, switch them off instead.' })) del.mutate(sel); };
@@ -171,22 +184,23 @@ export default function Users() {
           <div className="toolbar">
             <div className="search"><Search size={16} /><input className="input" placeholder="Search name, email or team" aria-label="Search people" value={q} onChange={(e) => { setQ(e.target.value); resetSel(); }} /></div>
             <select className="input" aria-label="Region" value={region} onChange={(e) => { setRegion(e.target.value); setPage(1); resetSel(); }}><option value="">All regions</option>{regions.map((r) => <option key={r.code} value={r.code}>{r.name}</option>)}</select>
+            <select className="input" aria-label="Gender" value={gender} onChange={(e) => { setGender(e.target.value); setPage(1); resetSel(); }}><option value="">Any gender</option><option value="female">Female</option><option value="male">Male</option><option value="other">Other</option><option value="none">Not specified</option></select>
             <select className="input" aria-label="Status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); resetSel(); }}><option value="">Active and inactive</option><option value="active">Active</option><option value="inactive">Switched off</option></select>
             <select className="input" aria-label="Role" value={role} onChange={(e) => { setRole(e.target.value); setPage(1); resetSel(); }}><option value="">Everyone</option><option value="admin">HR admins</option><option value="employee">Employees</option></select>
           </div>
-          <SelectionBar count={sel.length} noun={sel.length === 1 ? 'person' : 'people'} busy={del.isPending} onDelete={askDelete} onClear={() => setSel([])} />
+          <SelectionBar count={sel.length} noun={sel.length === 1 ? 'person' : 'people'} busy={del.isPending || setGen.isPending} onDelete={askDelete} onClear={() => setSel([])} onGender={(g) => setGen.mutate(g)} />
           {skipped && <SkippedNotice r={skipped} noun="people" onClose={() => setSkipped(null)} />}
           {list.isLoading ? <PageLoader /> : list.isError ? <ErrorState error={list.error} retry={() => list.refetch()} /> : (
             <>
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th style={{ width: 36 }}><input type="checkbox" aria-label="Select everyone on this page" checked={list.data!.users.length > 0 && list.data!.users.every((u) => sel.includes(u.id))} onChange={(e) => setSel(e.target.checked ? list.data!.users.map((u) => u.id) : [])} /></th><th>Name</th><th>Team</th><th>Region</th><th>Last sign-in</th><th className="right">Active</th><th /></tr></thead>
+                  <thead><tr><th style={{ width: 36 }}><input type="checkbox" aria-label="Select everyone on this page" checked={list.data!.users.length > 0 && list.data!.users.every((u) => sel.includes(u.id))} onChange={(e) => setSel(e.target.checked ? list.data!.users.map((u) => u.id) : [])} /></th><th>Name</th><th>Team</th><th>Region</th><th>Gender</th><th>Last sign-in</th><th className="right">Active</th><th /></tr></thead>
                   <tbody>
                     {list.data!.users.map((u) => (
                       <tr key={u.id} style={{ opacity: u.active ? 1 : 0.55 }}>
                         <td><input type="checkbox" aria-label={`Select ${u.name}`} checked={sel.includes(u.id)} onChange={(e) => setSel(e.target.checked ? [...sel, u.id] : sel.filter((i) => i !== u.id))} /></td>
                         <td><div className="row" style={{ gap: 8 }}><b style={{ fontWeight: 500 }}>{u.name}</b>{u.role === 'admin' && <span className="badge brand"><ShieldCheck size={11} /> HR admin</span>}</div><div className="muted-sm">{u.email}</div></td>
-                        <td>{u.team || '—'}</td><td><span className="badge">{u.region}</span></td>
+                        <td>{u.team || '—'}</td><td><span className="badge">{u.region}</span></td><td>{u.gender ? GENDER_NAME[u.gender] : '—'}</td>
                         <td className="hint">{u.lastLoginAt ? ago(u.lastLoginAt) : 'Never'}</td>
                         <td className="right"><Switch checked={u.active} onChange={() => toggleActive.mutate(u)} label={`${u.name} active`} /></td>
                         <td className="right"><button className="icon-btn" style={{ width: 34, height: 34 }} aria-label={`Edit ${u.name}`} onClick={() => setEdit(u)}><Pencil size={15} /></button></td>

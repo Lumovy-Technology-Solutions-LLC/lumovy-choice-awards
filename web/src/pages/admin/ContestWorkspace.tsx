@@ -63,7 +63,7 @@ function Overview({ c, r }: { c: Contest; r: Readiness }) {
             <dt className="muted">Theme</dt><dd style={{ margin: 0 }}>{c.theme || '—'}</dd>
             <dt className="muted">Entries</dt><dd style={{ margin: 0 }} className="num">{c.entryCount}</dd>
             <dt className="muted">Places</dt><dd style={{ margin: 0 }}>Top {c.places}</dd>
-            <dt className="muted">Regions</dt><dd style={{ margin: 0 }}>{c.regionLabel} <span className="badge" style={{ marginLeft: 6 }}>{c.scope === 'global' ? 'Global' : c.scope === 'selected' ? 'Selected regions' : 'Regional'}</span></dd>
+            <dt className="muted">Regions</dt><dd style={{ margin: 0 }}>{c.regionLabel}{c.genderLabel ? <> · <b>{c.genderLabel} only</b></> : null} <span className="badge" style={{ marginLeft: 6 }}>{c.scope === 'global' ? 'Global' : c.scope === 'selected' ? 'Selected regions' : 'Regional'}</span></dd>
             <dt className="muted">Voting ends</dt><dd style={{ margin: 0 }}>{c.endAt ? c.deadlineLabel : 'Not set yet'}</dd>
             {c.startedAt && <><dt className="muted">Started</dt><dd style={{ margin: 0 }}>{fmtDateTime(c.startedAt, c.timezone)}</dd></>}
             {c.publishedAt && <><dt className="muted">Published</dt><dd style={{ margin: 0 }}>{fmtDateTime(c.publishedAt, c.timezone)}</dd></>}

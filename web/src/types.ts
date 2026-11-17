@@ -5,7 +5,7 @@ export type EntryType = 'image' | 'writing' | 'document' | 'video';
 
 export interface Contest {
   id: number; name: string; theme: string; description: string; rules: string; bannerUrl: string | null;
-  entryTypes: EntryType[]; regions: string[]; isGlobal: boolean; scope: 'regional' | 'selected' | 'global'; regionLabel: string; canVote?: boolean; places: number; status: Status; statusLabel: string; announced: boolean;
+  entryTypes: EntryType[]; regions: string[]; isGlobal: boolean; scope: 'regional' | 'selected' | 'global'; regionLabel: string; genders?: ('female' | 'male' | 'other')[]; genderLabel?: string; viewOnlyNote?: string; canVote?: boolean; places: number; status: Status; statusLabel: string; announced: boolean;
   timezone: string; endAt: string | null; endLocal: string; deadlineLabel: string;
   startedAt: string | null; closedAt: string | null; publishedAt: string | null; copiedFrom: number | null; createdAt: string;
   entryCount?: number; voterCount?: number; hasVoted?: boolean; myStatus?: 'none' | 'draft' | 'submitted';

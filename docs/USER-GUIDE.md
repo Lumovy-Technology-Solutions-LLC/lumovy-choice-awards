@@ -89,6 +89,7 @@ Shows how many contests are open, how many are waiting for you to publish, draft
 2. **Entries and audience**:
    - **Entry types**: photo/poster, writing, document (PDF/Word), video. Choose more than one if you like.
    - **Who takes part**: **Regional** (one region), **Selected regions** (two or more), or **Global** (every region that is switched on). *Everyone can see the contest; only these regions can vote and get its emails.*
+   - **Open to**: **Everyone** (default), or tick **Female**, **Male** and/or **Other** to open the contest only to people whose gender is set to one of those. People with no gender on file are left out of a limited contest (they can still see it). This is locked once voting starts. Gender and a contest's gender limit are visible to HR admins only: employees never see their own or anyone else's gender, and a limited contest just shows them "Not open to you".
    - **Places to vote for**: always **Top 3** (fixed; 1st = 3 points, 2nd = 2, 3rd = 1).
 3. **Schedule**: **Voting ends** date and time, and the time zone (India time by default). Optionally switch on **Show as "Coming soon"** so employees see the name and theme before voting opens (entries stay hidden).
 
@@ -162,11 +163,12 @@ For each one you can edit the **subject** and **message**, insert details with t
 **Users & regions** has two tabs.
 
 **People**
-- **Search and filter** by name, email, team, region, status and role.
+- **Search and filter** by name, email, team, region, gender, status and role.
+- **Gender is optional** on each person (edit a person, or import it). Tick several people and use **Set gender…** to change many at once.
 - **Add person**: name, work email, team and **region (required)**, optionally HR admin.
 - **Edit** a person, or use the **Active** switch to turn off someone who has left. Switched-off people cannot sign in or vote.
 - **HR admin** switch gives or removes admin access. There must always be at least one active admin, and you cannot remove your own access.
-- **Import spreadsheet**: upload `.xlsx` or `.csv` with columns **name, email, team, region** (region is required for every row). Download the template from the same dialog. You see a **check first** (new, to update, problem rows) before anything is saved. People are matched by email: existing ones are updated, new ones are added, and nobody is removed.
+- **Import spreadsheet**: upload `.xlsx` or `.csv` with columns **name, email, team, region** (region is required for every row) and, optionally, **gender** (female, male or other; empty keeps what is stored). Download the template from the same dialog. You see a **check first** (new, to update, problem rows) before anything is saved. People are matched by email: existing ones are updated, new ones are added, and nobody is removed.
 - **Bulk delete**: tick the boxes next to people (or the top box for everyone on the page), then **Delete selected**. After you confirm, they are removed for good. People who have already voted or saved a ballot, you, and the last active HR admin are kept, and the screen lists each one with the reason. To stop someone voting but keep their history, switch them off instead.
 
 **Regions**
