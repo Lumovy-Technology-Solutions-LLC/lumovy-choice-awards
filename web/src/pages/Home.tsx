@@ -95,13 +95,25 @@ export default function Home() {
   const home = useQuery({ queryKey: ['home'], queryFn: () => api.get<HomeData>('/api/portal/home'), refetchInterval: 60_000 });
   const detail = useQuery({ queryKey: ['contest', id], enabled: !!id, queryFn: () => api.get<{ serverTime: string; contest: Contest }>(`/api/portal/contests/${id}`) });
 
+  // Start on the contest named in the address.
+  const homeData = home.data;
+  useEffect(() => {
+    if (!id || !homeData) return;
+    const list = [homeData.featured, ...homeData.alsoOpen].filter((x): x is Contest => !!x);
+    const i = list.findIndex((x) => String(x.id) === id);
+    setIdx(i >= 0 ? i : 0);
+  }, [id, homeData === undefined]);
+
   if (home.isLoading || (id && detail.isLoading)) return <div className="wrap"><PageLoader /></div>;
   if (home.isError) return <div className="wrap"><ErrorState error={home.error} retry={() => home.refetch()} /></div>;
   if (id && detail.isError) return <div className="wrap"><ErrorState error={detail.error} retry={() => detail.refetch()} /></div>;
 
   const h = home.data!;
   // Every contest running right now gets its own slide: open for voting first, then coming soon.
-  const slides: Contest[] = id ? [detail.data!.contest] : [h.featured, ...h.alsoOpen].filter((x): x is Contest => !!x);
+  // A contest page (/contests/:id) keeps the other open contests in the carousel, starting on the chosen one,
+  // so going back from a ballot never hides the others. A contest that is not in the list (closed, published) is shown alone.
+  const open = [h.featured, ...h.alsoOpen].filter((x): x is Contest => !!x);
+  const slides: Contest[] = id ? (open.some((x) => String(x.id) === id) ? open : [detail.data!.contest]) : open;
   count.current = slides.length;
   const c: Contest | null = slides[Math.min(idx, slides.length - 1)] ?? null;
   const go = (n: number) => setIdx((n + slides.length) % slides.length);
