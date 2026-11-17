@@ -53,7 +53,7 @@ export default function Vote({ preview = false }: { preview?: boolean }) {
     queryFn: () => api.get<EntriesRes>(preview ? `${base}/preview` : `${base}/entries`),
     retry: false, refetchOnWindowFocus: !preview,
   });
-  const ballotQ = useQuery({ queryKey: ['ballot', id], enabled: !preview, queryFn: () => api.get<Ballot>(`${base}/ballot`), retry: false });
+  const ballotQ = useQuery({ queryKey: ['ballot', id], enabled: !preview, refetchOnMount: 'always', queryFn: () => api.get<Ballot>(`${base}/ballot`), retry: false });
 
   const [picks, setPicks] = useState<Record<number, number>>({}); // rank -> entryId
   const [loaded, setLoaded] = useState(false);
@@ -69,14 +69,14 @@ export default function Vote({ preview = false }: { preview?: boolean }) {
   const [closedMsg, setClosedMsg] = useState(false);
 
   useEffect(() => {
-    if (loaded || !ballotQ.data) return;
+    if (loaded || !ballotQ.data || ballotQ.isFetching) return; // wait for the fresh copy, not a cached one
     if (ballotQ.data.status === 'draft') {
       const m: Record<number, number> = {};
       (ballotQ.data.picks as Pick[]).forEach((p) => { m[p.rank] = p.entryId; });
       setPicks(m);
     }
     setLoaded(true);
-  }, [ballotQ.data, loaded]);
+  }, [ballotQ.data, ballotQ.isFetching, loaded]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -109,7 +109,12 @@ export default function Vote({ preview = false }: { preview?: boolean }) {
   async function saveForLater() {
     if (preview) { toast('Preview only: nothing is saved.'); return; }
     setSaving(true);
-    try { await api.put(`${base}/ballot`, { picks: pickList }); setDirty(false); setSavedAt(new Date()); toast('Saved. Your picks will be here when you come back.'); }
+    try {
+      await api.put(`${base}/ballot`, { picks: pickList });
+      // Keep the cached ballot and the home page in step, so coming back shows these picks straight away.
+      qc.setQueryData(['ballot', id], { status: 'draft', picks: pickList });
+      qc.invalidateQueries({ queryKey: ['home'] }); qc.invalidateQueries({ queryKey: ['contest'] });
+      setDirty(false); setSavedAt(new Date()); toast('Saved. Your picks will be here when you come back.'); }
     catch (e) { handleClosed(e) || toast(errMsg(e), 'error'); } finally { setSaving(false); }
   }
   function handleClosed(e: unknown) {
