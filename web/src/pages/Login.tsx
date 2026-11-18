@@ -84,9 +84,9 @@ export default function Login() {
             <div className="pod3d">
               <div className="trophy"><Trophy size={64} color="#F5B83D" strokeWidth={1.6} /></div>
               <div className="pod3d-row">
-                <div className="st s2"><span className="st-n">2</span><span className="st-p">pts</span></div>
+                <div className="st s2"><span className="st-n">2</span></div>
                 <div className="st s1"><span className="st-n">1</span><span className="st-p">winner</span></div>
-                <div className="st s3"><span className="st-n">3</span><span className="st-p">pts</span></div>
+                <div className="st s3"><span className="st-n">3</span></div>
               </div>
               <div className="pod3d-floor" />
             </div>

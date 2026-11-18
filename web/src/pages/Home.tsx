@@ -111,9 +111,9 @@ export default function Home() {
   const h = home.data!;
   // Every contest running right now gets its own slide: open for voting first, then coming soon.
   // A contest page (/contests/:id) keeps the other open contests in the carousel, starting on the chosen one,
-  // so going back from a ballot never hides the others. A contest that is not in the list (closed, published) is shown alone.
+  // so going back from a ballot never hides the others. A contest that is not open (closed, published) comes first, with the open ones still after it.
   const open = [h.featured, ...h.alsoOpen].filter((x): x is Contest => !!x);
-  const slides: Contest[] = id ? (open.some((x) => String(x.id) === id) ? open : [detail.data!.contest]) : open;
+  const slides: Contest[] = id ? (open.some((x) => String(x.id) === id) ? open : [detail.data!.contest, ...open]) : open;
   count.current = slides.length;
   const c: Contest | null = slides[Math.min(idx, slides.length - 1)] ?? null;
   const go = (n: number) => setIdx((n + slides.length) % slides.length);
