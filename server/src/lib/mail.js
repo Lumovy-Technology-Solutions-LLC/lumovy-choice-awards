@@ -90,8 +90,9 @@ export async function getTemplate(contestId, key, trx = db) {
 // ---------- rendering ----------
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const html = (h) => ({ __html: h });
+// A "bulletproof" button: a table cell with its own background colour, so it shows in Outlook and in dark mode too.
 const button = (label, url) =>
-  `<a href="${esc(url)}" style="display:inline-block;background:#FF7A2F;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 26px;border-radius:999px;font-size:15px">${esc(label)}</a>`;
+  `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 6px"><tr><td align="center" bgcolor="#FF7A2F" style="background:#FF7A2F;border-radius:999px"><a href="${esc(url)}" style="display:inline-block;padding:13px 30px;font-family:Segoe UI,Arial,sans-serif;font-size:15px;font-weight:700;line-height:1;color:#ffffff;text-decoration:none">${esc(label)}</a></td></tr></table>`;
 
 function fill(str, vars, asHtml) {
   return String(str).replace(/{{\s*(\w+)\s*}}/g, (_, k) => {
@@ -115,13 +116,24 @@ export function renderEmail(tpl, vars) {
 }
 
 function layout(inner, preheader) {
-  return `<!doctype html><html><body style="margin:0;background:#EEF1FA;font-family:Poppins,Segoe UI,Arial,sans-serif;color:#141743">
-<span style="display:none">${esc(preheader)}</span>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px 12px">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden">
-<tr><td style="background:linear-gradient(150deg,#2D31C4,#161A7A);padding:22px 28px;color:#fff"><span style="font-size:22px;font-weight:700;letter-spacing:-.01em">Lumovy</span> <span style="opacity:.8;font-size:14px">Choice Awards</span></td></tr>
-<tr><td style="padding:28px;font-size:15px">${inner}</td></tr>
-<tr><td style="padding:16px 28px;background:#F6F7FD;color:#6B6F99;font-size:12px">Lumovy Technology Solutions · Employee Choice Awards. This is an automated message.</td></tr>
+  const site = config.appUrl;
+  const logo = /^https:\/\//.test(site) ? `<img src="${esc(site)}/brand/logo-white.png" alt="Lumovy" width="120" style="display:block;border:0;height:auto;margin:0 auto 14px">` : '';
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"></head>
+<body bgcolor="#EEF1FA" style="margin:0;background:#EEF1FA;font-family:Poppins,Segoe UI,Arial,sans-serif;color:#141743">
+<span style="display:none;max-height:0;overflow:hidden">${esc(preheader)}</span>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#EEF1FA"><tr><td align="center" style="padding:24px 12px">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="max-width:600px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden">
+<tr><td align="center" bgcolor="#2D31C4" style="background:#2D31C4;padding:30px 28px 26px;color:#ffffff;text-align:center">
+${logo}<div style="font-size:34px;line-height:1">&#127942;</div>
+<div style="font-size:24px;font-weight:700;letter-spacing:-.01em;margin-top:8px;color:#ffffff">Employee Choice Awards</div>
+<div style="font-size:14px;margin-top:6px;color:#D6D8FF">Vote for the work, not the person</div>
+</td></tr>
+<tr><td bgcolor="#FF7A2F" style="background:#FF7A2F;height:4px;line-height:4px;font-size:0">&nbsp;</td></tr>
+<tr><td bgcolor="#ffffff" style="padding:30px 32px 22px;font-size:15px;color:#141743;background:#ffffff">${inner}</td></tr>
+<tr><td align="center" bgcolor="#F6F7FD" style="padding:18px 28px;background:#F6F7FD;color:#6B6F99;font-size:12px;line-height:1.6;text-align:center">
+<a href="${esc(site)}" style="color:#2D31C4;font-weight:600;text-decoration:none">Open Employee Choice Awards</a><br>
+Lumovy Technology Solutions &middot; This is an automated message, please do not reply with votes or codes.
+</td></tr>
 </table></td></tr></table></body></html>`;
 }
 
