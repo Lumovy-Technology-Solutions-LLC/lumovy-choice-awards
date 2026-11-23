@@ -92,7 +92,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 export const html = (h) => ({ __html: h });
 // A "bulletproof" button: a table cell with its own background colour, so it shows in Outlook and in dark mode too.
 const button = (label, url) =>
-  `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 6px"><tr><td align="center" bgcolor="#FF7A2F" style="background:#FF7A2F;border-radius:999px"><a href="${esc(url)}" style="display:inline-block;padding:13px 30px;font-family:Segoe UI,Arial,sans-serif;font-size:15px;font-weight:700;line-height:1;color:#ffffff;text-decoration:none">${esc(label)}</a></td></tr></table>`;
+  `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 6px"><tr><td align="center" bgcolor="#0041A9" style="background:#0041A9;border-radius:999px"><a href="${esc(url)}" style="display:inline-block;padding:13px 30px;font-family:Segoe UI,Arial,sans-serif;font-size:15px;font-weight:700;line-height:1;color:#ffffff;text-decoration:none">${esc(label)}</a></td></tr></table>`;
 
 function fill(str, vars, asHtml) {
   return String(str).replace(/{{\s*(\w+)\s*}}/g, (_, k) => {
@@ -125,15 +125,15 @@ function layout(inner, preheader) {
 <span style="display:none;max-height:0;overflow:hidden">${esc(preheader)}</span>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#EEF1FA"><tr><td align="center" style="padding:24px 12px">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="max-width:600px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden">
-<tr><td align="center" bgcolor="#0B1B5E" style="background:#0B1B5E;padding:30px 28px 26px;color:#ffffff;text-align:center">
+<tr><td align="center" bgcolor="#002756" style="background:#002756;padding:30px 28px 26px;color:#ffffff;text-align:center">
 ${logo}<div style="font-size:34px;line-height:1">&#127942;</div>
 <div style="font-size:24px;font-weight:700;letter-spacing:-.01em;margin-top:8px;color:#ffffff">Employee Choice Awards</div>
-<div style="font-size:14px;margin-top:6px;color:#C9D0FF">Vote for the work, not the person</div>
+<div style="font-size:14px;margin-top:6px;color:#BFD6F5">Vote for the work, not the person</div>
 </td></tr>
-<tr><td bgcolor="#FF7A2F" style="background:#FF7A2F;height:4px;line-height:4px;font-size:0">&nbsp;</td></tr>
+<tr><td bgcolor="#009CFD" style="background:#009CFD;height:4px;line-height:4px;font-size:0">&nbsp;</td></tr>
 <tr><td bgcolor="#ffffff" style="padding:30px 32px 22px;font-size:15px;color:#141743;background:#ffffff">${inner}</td></tr>
 <tr><td align="center" bgcolor="#F6F7FD" style="padding:18px 28px;background:#F6F7FD;color:#6B6F99;font-size:12px;line-height:1.6;text-align:center">
-<a href="${esc(site)}" style="color:#2D31C4;font-weight:600;text-decoration:none">Open Employee Choice Awards</a><br>
+<a href="${esc(site)}" style="color:#0041A9;font-weight:600;text-decoration:none">Open Employee Choice Awards</a><br>
 Lumovy Technology Solutions &middot; This is an automated message, please do not reply with votes or codes.
 </td></tr>
 </table></td></tr></table></body></html>`;
