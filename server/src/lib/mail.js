@@ -104,7 +104,9 @@ function fill(str, vars, asHtml) {
 }
 
 export function renderEmail(tpl, vars) {
-  const subject = fill(tpl.subject, vars, false).replace(/\s+/g, ' ').trim();
+  // Mail arrives from a shared mailbox, so the subject says which system it is from.
+  const plain = fill(tpl.subject, vars, false).replace(/\s+/g, ' ').trim();
+  const subject = /choice awards/i.test(plain) ? plain : `Lumovy Choice Awards: ${plain}`;
   const paras = tpl.body.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
   const inner = paras.map((p) => {
     const only = /^{{\s*(\w+)\s*}}$/.exec(p);
@@ -123,10 +125,10 @@ function layout(inner, preheader) {
 <span style="display:none;max-height:0;overflow:hidden">${esc(preheader)}</span>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#EEF1FA"><tr><td align="center" style="padding:24px 12px">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="max-width:600px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden">
-<tr><td align="center" bgcolor="#2D31C4" style="background:#2D31C4;padding:30px 28px 26px;color:#ffffff;text-align:center">
+<tr><td align="center" bgcolor="#0B1B5E" style="background:#0B1B5E;padding:30px 28px 26px;color:#ffffff;text-align:center">
 ${logo}<div style="font-size:34px;line-height:1">&#127942;</div>
 <div style="font-size:24px;font-weight:700;letter-spacing:-.01em;margin-top:8px;color:#ffffff">Employee Choice Awards</div>
-<div style="font-size:14px;margin-top:6px;color:#D6D8FF">Vote for the work, not the person</div>
+<div style="font-size:14px;margin-top:6px;color:#C9D0FF">Vote for the work, not the person</div>
 </td></tr>
 <tr><td bgcolor="#FF7A2F" style="background:#FF7A2F;height:4px;line-height:4px;font-size:0">&nbsp;</td></tr>
 <tr><td bgcolor="#ffffff" style="padding:30px 32px 22px;font-size:15px;color:#141743;background:#ffffff">${inner}</td></tr>
