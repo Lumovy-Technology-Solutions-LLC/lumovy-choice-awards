@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import nodemailer from 'nodemailer';
 import { config } from '../config.js';
 import { db, nowIso } from '../db/index.js';
@@ -117,18 +119,31 @@ export function renderEmail(tpl, vars) {
   return { subject, html: layout(inner, subject), text };
 }
 
+const LOGO_CID = 'lumovy-logo';
+let logoBytes;
+const logoFile = () => (logoBytes ??= fs.readFileSync(path.resolve(config.root, 'assets/logo-white.png')));
+const TROPHY_CID = 'lumovy-trophy';
+let trophyBytes;
+const trophyFile = () => (trophyBytes ??= fs.readFileSync(path.resolve(config.root, 'assets/trophy.png')));
+const hasLogo = (m) => String(m.html || '').includes(`cid:${LOGO_CID}`);
+const inlineImages = (m) => (hasLogo(m) ? [{ name: 'lumovy-logo.png', cid: LOGO_CID, bytes: logoFile() }, { name: 'trophy.png', cid: TROPHY_CID, bytes: trophyFile() }] : []);
+
 function layout(inner, preheader) {
   const site = config.appUrl;
-  const logo = /^https:\/\//.test(site) ? `<img src="${esc(site)}/brand/logo-white.png" alt="Lumovy" width="120" style="display:block;border:0;height:auto;margin:0 auto 14px">` : '';
+  // The logo travels inside the email (cid), so it shows even where remote images are blocked, as in new Outlook.
+  const logo = `<img src="cid:${LOGO_CID}" alt="Lumovy" width="180" style="display:block;border:0;height:auto;margin:0 auto 18px">`;
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"></head>
 <body bgcolor="#EEF1FA" style="margin:0;background:#EEF1FA;font-family:Poppins,Segoe UI,Arial,sans-serif;color:#141743">
 <span style="display:none;max-height:0;overflow:hidden">${esc(preheader)}</span>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#EEF1FA"><tr><td align="center" style="padding:24px 12px">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="max-width:600px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden">
 <tr><td align="center" bgcolor="#002756" style="background:#002756;padding:30px 28px 26px;color:#ffffff;text-align:center">
-${logo}<div style="font-size:34px;line-height:1">&#127942;</div>
-<div style="font-size:24px;font-weight:700;letter-spacing:-.01em;margin-top:8px;color:#ffffff">Employee Choice Awards</div>
-<div style="font-size:14px;margin-top:6px;color:#BFD6F5">Vote for the work, not the person</div>
+${logo}<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:4px auto 0"><tr>
+<td valign="middle" style="padding-right:14px"><img src="cid:${TROPHY_CID}" alt="" width="36" height="36" style="display:block;border:0"></td>
+<td valign="middle" align="center"><div style="font-size:24px;font-weight:700;letter-spacing:-.01em;color:#ffffff;line-height:1.2">Employee Choice Awards</div>
+<div style="font-size:14px;margin-top:6px;color:#BFD6F5">Vote for the work, not the person</div></td>
+<td valign="middle" style="padding-left:14px"><img src="cid:${TROPHY_CID}" alt="" width="36" height="36" style="display:block;border:0"></td>
+</tr></table>
 </td></tr>
 <tr><td bgcolor="#009CFD" style="background:#009CFD;height:4px;line-height:4px;font-size:0">&nbsp;</td></tr>
 <tr><td bgcolor="#ffffff" style="padding:30px 32px 22px;font-size:15px;color:#141743;background:#ffffff">${inner}</td></tr>
@@ -220,6 +235,7 @@ export async function sendViaGraph(m) {
       toRecipients: [{ emailAddress: { address: m.to_email, ...(m.to_name ? { name: m.to_name.replace(/"/g, '') } : {}) } }],
       ...(config.mail.replyTo ? { replyTo: [{ emailAddress: { address: config.mail.replyTo } }] } : {}),
       internetMessageHeaders: [{ name: 'X-Auto-Response-Suppress', value: 'All' }],
+      ...(hasLogo(m) ? { attachments: inlineImages(m).map((i) => ({ '@odata.type': '#microsoft.graph.fileAttachment', name: i.name, contentType: 'image/png', contentBytes: i.bytes.toString('base64'), isInline: true, contentId: i.cid })) } : {}),
     },
     saveToSentItems: false,
   };
@@ -295,6 +311,7 @@ export async function processOutbox(limit = 25) {
         else await getTransporter().sendMail({
           from: config.mail.from, to: m.to_name ? `"${m.to_name.replace(/"/g, '')}" <${m.to_email}>` : m.to_email,
           subject: m.subject, html: m.html, text: m.text,
+          ...(hasLogo(m) ? { attachments: inlineImages(m).map((i) => ({ filename: i.name, content: i.bytes, cid: i.cid })) } : {}),
           ...(config.mail.replyTo ? { replyTo: config.mail.replyTo } : {}),
           // Marks this as a system message so mail servers and out-of-office replies treat it as such.
           headers: { 'Auto-Submitted': 'auto-generated', 'X-Auto-Response-Suppress': 'All' },
