@@ -89,4 +89,4 @@ setInterval(() => closeDueContests().catch((e) => console.error('close job', e))
 startMailWorker();
 startBackups();
 
-app.listen(config.port, () => console.log(`Lumovy Choice Awards API on http://localhost:${config.port} (db: ${db.client.config.client}, mail: ${config.mail.transport})`));
+app.listen(config.port, () => console.log(`Lumovy Employee Choice Awards API on http://localhost:${config.port} (db: ${db.client.config.client}, mail: ${config.mail.transport})`));

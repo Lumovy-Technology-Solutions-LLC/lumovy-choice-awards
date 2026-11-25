@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lcw-graph-'));
-Object.assign(process.env, { SQLITE_FILE: path.join(tmp, 't.db'), SQLITE_JOURNAL: 'delete', DATA_DIR: tmp, UPLOAD_DIR: path.join(tmp, 'up'), MAIL_TRANSPORT: 'graph', MAIL_MAX_PER_MINUTE: '0', MAIL_FROM: 'Lumovy Choice Awards <choice-awards@lumovy.com>', GRAPH_TENANT_ID: 'tenant-1', GRAPH_CLIENT_ID: 'client-1', GRAPH_CLIENT_SECRET: 'secret-1', NODE_ENV: 'development' });
+Object.assign(process.env, { SQLITE_FILE: path.join(tmp, 't.db'), SQLITE_JOURNAL: 'delete', DATA_DIR: tmp, UPLOAD_DIR: path.join(tmp, 'up'), MAIL_TRANSPORT: 'graph', MAIL_MAX_PER_MINUTE: '0', MAIL_FROM: 'Lumovy Employee Choice Awards <choice-awards@lumovy.com>', GRAPH_TENANT_ID: 'tenant-1', GRAPH_CLIENT_ID: 'client-1', GRAPH_CLIENT_SECRET: 'secret-1', NODE_ENV: 'development' });
 const { db } = await import('../src/db/index.js');
 const { migrate } = await import('../src/db/migrate.js');
 const mail = await import('../src/lib/mail.js');
@@ -33,7 +33,7 @@ test('sends as the mailbox with the right request', async () => {
   const b = JSON.parse(c.init.body);
   assert.equal(b.message.toRecipients[0].emailAddress.address, 'a@t.com');
   assert.equal(b.message.subject, 'Hello');
-  assert.deepEqual(b.message.from, { emailAddress: { name: 'Lumovy Choice Awards', address: 'choice-awards@lumovy.com' } });
+  assert.deepEqual(b.message.from, { emailAddress: { name: 'Lumovy Employee Choice Awards', address: 'choice-awards@lumovy.com' } });
   assert.equal(b.saveToSentItems, false);
 });
 

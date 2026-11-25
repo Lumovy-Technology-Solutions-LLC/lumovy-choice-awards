@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time Azure set-up for Lumovy Choice Awards.
+# One-time Azure set-up for Lumovy Employee Choice Awards.
 # Run in Azure Cloud Shell (bash) or a terminal with `az login` done. Pass settings inline (see below), nothing to edit.
 # Creates ONLY: resource group, App Service plan + Linux web app (Node 22), app settings, persistent upload folder, health check and
 # HTTPS only (plus a PostgreSQL Flexible Server if you pass DB=postgres). Nothing else: email is sent through Microsoft Graph as an existing
@@ -30,7 +30,7 @@ CUSTOM_URL="${CUSTOM_URL:-https://lumovychoiceawards.com}"   # public address yo
 ADMIN_NAME="${ADMIN_NAME:-HR Admin}"
 ADMIN_TEMP_PASSWORD="$(openssl rand -base64 18 | tr -d '=+/')A1!"
 GRAPH_TENANT_ID="${GRAPH_TENANT_ID:-}"; GRAPH_CLIENT_ID="${GRAPH_CLIENT_ID:-}"; GRAPH_CLIENT_SECRET="${GRAPH_CLIENT_SECRET:-}"; GRAPH_SENDER="${GRAPH_SENDER:-}"
-MAIL_NAME="${MAIL_NAME:-Lumovy Choice Awards}"   # sender display name
+MAIL_NAME="${MAIL_NAME:-Lumovy Employee Choice Awards}"   # sender display name
 MAIL_MAX_PER_MINUTE="${MAIL_MAX_PER_MINUTE:-20}" # stay under Microsoft 365's 30 a minute per mailbox (lower it if the mailbox is shared with other senders)
 MAIL_REPLY_TO="${MAIL_REPLY_TO:-$ADMIN_EMAIL}"   # where replies go
 # --------------------------------

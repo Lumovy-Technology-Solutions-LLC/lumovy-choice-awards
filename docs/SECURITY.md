@@ -23,6 +23,9 @@
 - Hard close enforced on every request against the server clock.
 - The voter's own receipt is AES-256-GCM encrypted with a per-user key derived from `APP_SECRET`. Keep that secret out of the repository and rotate it only with a plan, because rotating it makes existing receipts unreadable (votes and results are unaffected).
 - No live scores for voters: the leaderboard exists only under `/api/admin`.
+- Sign-in codes are never readable by admins: the outbox API redacts them and the stored email is wiped once sent.
+- Employee gender and a contest's gender limit are visible to admins only; the employee API never returns them.
+- Deleting a contest is an admin action recorded in the activity log (name, status, voters, entries).
 - Every admin action is written to an append-only activity log (no edit or delete endpoint).
 
 ## File handling

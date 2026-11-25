@@ -20,6 +20,7 @@ It replaces ad-hoc forms, spreadsheets and email threads with one place where a 
 - Counts points (3-2-1), applies tie-breaks, and publishes winners with names only when HR says so.
 - Opens voting when HR clicks **Start contest** and closes it automatically at the end time (HR can also close early or extend while it is open).
 - Emails everyone at the right moments: contest started, your vote is in, results declared, plus optional reminders and deadline extensions.
+- Lets HR delete a contest at any stage (one or several at once), with a confirmation and an activity-log entry.
 - Gives HR live tracking (turnout, who has not voted, HR-only leaderboard), Excel downloads and a full activity log.
 
 ## Contest lifecycle
@@ -31,7 +32,7 @@ Create -> Add entries -> Set schedule -> Voting (auto-closes) -> Check results -
 
 | Status | Meaning | Employees see |
 | --- | --- | --- |
-| Draft (optionally "Coming soon") | Being set up | Only if HR switched on "Coming soon": name and theme, no entries |
+| Draft (optionally "Coming soon") | Being set up | Only if HR switched on "Coming soon": name and theme, no entries, shown in the home banner and as a plain (not clickable) card |
 | Voting open | Live | Entries (participating regions), countdown, ballot |
 | Voting closed | End time passed or HR closed it | "Results soon" |
 | Winners announced | HR published | Winners, full results table, their own vote |

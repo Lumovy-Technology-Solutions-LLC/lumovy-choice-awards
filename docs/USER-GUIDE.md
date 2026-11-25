@@ -20,11 +20,11 @@ This guide has two parts: **Part 1 for employees** who vote, and **Part 2 for HR
 
 ## 2. The home screen
 
-At the top is a banner for each contest that is **open for voting**. If more than one is open, the banner slides between them by itself every few seconds. Use the arrows or dots to move yourself. It pauses while your mouse is over it.
+At the top is a banner for each contest that is **open for voting**, followed by one for each contest that is **coming soon**. If there is more than one, the banner slides between them by itself every few seconds. Use the arrows or dots to move yourself. It pauses while your mouse is over it.
 
 Each slide shows:
 - the **status** ("Voting open"), the region(s) it is open to, and how many entries there are;
-- a **live countdown** (days, hours, minutes, seconds) to the closing time;
+- a **live countdown** (days, hours, minutes, seconds) to the closing time (a coming-soon slide says voting opens soon, with no voting button);
 - **Start voting** (or **Continue voting** if you saved picks, or **See my vote** if you have voted) and **How it works**.
 
 Below the banner are four tiles:
@@ -34,8 +34,8 @@ Below the banner are four tiles:
 - **Deadline**: when voting closes.
 
 Further down:
-- **Upcoming contests**: contests that are coming soon.
-- **Past contests**: finished contests with the month and number of votes. Click one to see the top 3, and **your own vote** in it. Winners stay hidden until you click.
+- **Upcoming contests**: contests that are coming soon, shown as plain information (not clickable).
+- **Past contests**: the **latest** finished contest, with the month and number of votes. Click it to see the top 3, and **your own vote** in it. Winners stay hidden until you click. To find earlier ones, use the **search box** (by name) or the **month list** (a month, or **All past contests**).
 
 **Contests for other regions.** You can see every contest. If a contest is not open to your region you will see "Open to … · view only" and cannot vote in it. You can still read the results once published.
 
@@ -94,6 +94,10 @@ Shows how many contests are open, how many are waiting for you to publish, draft
 3. **Schedule**: **Voting ends** date and time, and the time zone (India time by default). Optionally switch on **Show as "Coming soon"** so employees see the name and theme before voting opens (entries stay hidden).
 
 Press **Create contest**. You can change everything until you start it.
+
+**Find contests.** In **Contests**, use the status buttons (**All**, **Draft**, **Voting open**, **Voting closed**, **Published**, each with a count) and the search box.
+
+**Delete contests.** Open a contest and press the bin button in its header, or tick several contests in the list and press **Delete selected**. You can delete a contest at any stage. A contest that has started or finished loses its entries, **every vote** and its voting history, and employees stop seeing it. This cannot be undone, so the confirmation names the contest. The deletion is recorded in the activity log.
 
 **Copy an earlier contest.** In the contest list, click the copy button on a row. You get a new draft with the same settings, region reach, email wording and banner, ready for new entries and a new end date.
 
@@ -156,7 +160,9 @@ Contest > **Emails**. There are five templates:
 
 For each one you can edit the **subject** and **message**, insert details with the `{{...}}` buttons (name, contest name, deadline, vote link, picks, winners, and so on), see a live **preview**, and **Send test to me** (goes only to you). **Reset wording** returns to the standard text. Edits apply to this contest only; copying a contest carries them over.
 
-**Email outbox** (side menu) lists every email with its status (queued, sent, failed; in test mode "captured"). Click a subject to see the message.
+**Email outbox** (side menu) lists every email with its status (queued, sent, failed; in test mode "captured"). Click a subject to see the message. **Sign-in codes are never shown**, not even to HR: those emails read "The sign-in code is hidden for security".
+
+Every email has the same look: a dark blue Lumovy banner with the logo and "Employee Choice Awards", a button, and a link to the portal. Subjects start with **Lumovy Employee Choice Awards:** so people recognise the sender. The logo is attached inside the email, so it also shows in new Outlook.
 
 ## 8. Users and regions
 

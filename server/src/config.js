@@ -24,7 +24,7 @@ export const config = {
   backup: { keep: Number(process.env.BACKUP_KEEP ?? 40), hours: Number(process.env.BACKUP_HOURS || 6) },
   mail: {
     transport: process.env.MAIL_TRANSPORT || 'dev',
-    from: process.env.MAIL_FROM || 'Lumovy Choice Awards <choice-awards@lumovy.com>',
+    from: process.env.MAIL_FROM || 'Lumovy Employee Choice Awards <choice-awards@lumovy.com>',
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT || 587),
     user: process.env.SMTP_USER,

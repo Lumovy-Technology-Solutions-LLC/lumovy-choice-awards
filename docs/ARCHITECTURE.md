@@ -62,7 +62,7 @@ One Node process serves the API and, in production, the built web app (`web/dist
 | `votes` | (contest, entry, rank, points). **No user reference** |
 | `ballot_drafts` | Saved-for-later picks, deleted on submit and at close |
 | `email_templates` | Per-contest wording overrides |
-| `outbox` | Every email: queued, sent/captured, failed, cancelled |
+| `outbox` | Every email: queued, sent/captured, failed, cancelled (sign-in code content is redacted once sent) |
 | `app_settings` | HR switches (email notifications, email sign-in codes), key and on/off value |
 | `audit_log` | Who did what and when |
 
@@ -83,6 +83,8 @@ One Node process serves the API and, in production, the built web app (`web/dist
 - A voter's own picks are stored as an **encrypted receipt** (AES-256-GCM, key derived per user from the server secret) so they can see "my vote". Only that voter's own session can read it through the API. A person with both the database and the server secret could decrypt receipts, so protect the secret like a password.
 
 ## Email
+
+All emails share one HTML layout (`layout()` in `server/src/lib/mail.js`): table-based, with a Deep Navy (`#002756`) banner, so it renders the same in old and new Outlook and survives dark mode. The Lumovy logo and the trophy are **inline attachments** (`cid:` images, files in `server/assets/`), added by both the Graph and SMTP senders, so they show without "load images". Every subject starts with "Lumovy Employee Choice Awards:" (unless it already says so). Sign-in code emails are wiped to a placeholder as soon as they are sent and are always shown redacted by the outbox API, so nobody but the recipient can read a code.
 
 All emails go through the `outbox` table. A worker claims queued rows, sends them, and marks `sent`, or after 3 failures `failed`. Sending is paced (`MAIL_MAX_PER_MINUTE`, optional `MAIL_MAX_PER_HOUR`): sign-in codes and vote confirmations go first, bulk mail goes in small batches, and a provider "too fast" reply (450 4.5.127) puts the emails back in the queue and pauses sending, without counting a failed attempt. This keeps a full-company send off the request path and survives restarts. `MAIL_TRANSPORT` is `smtp` (Nodemailer), `graph` (Microsoft Graph `sendMail` as one Microsoft 365 mailbox; throttling or permission answers keep emails queued) or `dev`, which captures instead of sending, which is how the portal runs without SMTP. HR can also switch email off in **Admin > Settings**: `queue()` checks the `app_settings` flags and skips sign-in codes or notifications accordingly, and the sign-in page hides the email-code option.
 

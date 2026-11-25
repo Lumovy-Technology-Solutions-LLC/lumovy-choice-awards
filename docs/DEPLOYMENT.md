@@ -53,7 +53,7 @@ App settings it configures:
 | `SQLITE_JOURNAL`, `BACKUP_HOURS` | SQLite only: `delete` (safe on Azure's network storage) and the automatic backup interval (6 hours) |
 | `DATABASE_URL` | PostgreSQL only: URL with `sslmode=require`. Leave it unset for SQLite |
 | `UPLOAD_DIR`, `DATA_DIR` | `/home/data/uploads`, `/home/data` (persistent) |
-| `MAIL_TRANSPORT`, `MAIL_FROM` | `smtp` and the sender, for example `Lumovy Choice Awards <DoNotReply@<guid>.azurecomm.net>` |
+| `MAIL_TRANSPORT`, `MAIL_FROM` | `smtp` and the sender, for example `Lumovy Employee Choice Awards <DoNotReply@<guid>.azurecomm.net>` |
 | `MAIL_MAX_PER_MINUTE`, `MAIL_MAX_PER_HOUR` | Optional sending pace (default 20 a minute, no hourly cap). See "Sending limits" under Email |
 | `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`, `GRAPH_SENDER` | Only with `MAIL_TRANSPORT=graph` (send through a Microsoft 365 mailbox, see "Email through your own Microsoft 365 mailbox") |
 | `SMTP_HOST`, `SMTP_PORT` | `smtp.azurecomm.net`, `587` |
@@ -102,7 +102,7 @@ The portal sends all mail through its own queue. **The recommended way is Micros
 2. Add the DNS records it shows (a TXT to verify, SPF, and two DKIM CNAMEs) at your DNS host, then click **Verify**.
 3. Open the domain > **MailFrom addresses > Add**, for example `choice-awards` (the full address becomes `choice-awards@lumovy.com`).
 4. In the Communication Service resource (`acs-choice-awards`) > **Email > Domains**, connect the new domain.
-5. In the web app > **Environment variables**, set `MAIL_FROM` to `Lumovy Choice Awards <choice-awards@lumovy.com>`, save and restart.
+5. In the web app > **Environment variables**, set `MAIL_FROM` to `Lumovy Employee Choice Awards <choice-awards@lumovy.com>`, save and restart.
 
 ### Email through your own Microsoft 365 mailbox (Microsoft Graph)
 
@@ -120,7 +120,7 @@ This replaces ACS. The portal sends as one Lumovy mailbox (for example `choice-a
    The policy can take up to an hour to take effect. Until then sending may answer "403 access denied". The portal keeps the emails queued and retries by itself.
 4. **App settings** (Cloud Shell; the app restarts by itself):
    ```bash
-   az webapp config appsettings set -n lumovy-choice-awards-dev -g rg-lumovy-choice-awards --settings      MAIL_TRANSPORT=graph MAIL_FROM="Lumovy Choice Awards <choice-awards@lumovy.com>" GRAPH_SENDER=choice-awards@lumovy.com      GRAPH_TENANT_ID=<tenant id> GRAPH_CLIENT_ID=<client id> GRAPH_CLIENT_SECRET=<secret value>      MAIL_MAX_PER_MINUTE=25 MAIL_MAX_PER_HOUR=0 MAIL_REPLY_TO=hradmin@lumovy.com
+   az webapp config appsettings set -n lumovy-choice-awards-dev -g rg-lumovy-choice-awards --settings      MAIL_TRANSPORT=graph MAIL_FROM="Lumovy Employee Choice Awards <choice-awards@lumovy.com>" GRAPH_SENDER=choice-awards@lumovy.com      GRAPH_TENANT_ID=<tenant id> GRAPH_CLIENT_ID=<client id> GRAPH_CLIENT_SECRET=<secret value>      MAIL_MAX_PER_MINUTE=25 MAIL_MAX_PER_HOUR=0 MAIL_REPLY_TO=hradmin@lumovy.com
    ```
    The old `SMTP_*` settings can stay or be deleted.
 5. **Check.** In **Admin > Settings** the mode reads **Live (Microsoft 365 mailbox)**; send yourself a test email. In **Admin > Email outbox**, a message that says "not allowed to send as ..." means step 3 is not finished yet, and "Microsoft sign-in for the mail app failed" means the tenant ID, client ID or secret is wrong. Queued emails are not lost: they send by themselves once it is fixed.
@@ -132,7 +132,7 @@ For external recipients, also turn on DKIM for `lumovy.com` in Microsoft Defende
 1. **Use your own verified domain** (steps above) and make sure DNS has all of: the **SPF** record ACS gives you (`v=spf1 include:spf.protection.outlook.com -all`, merged into any existing SPF record for the domain, never a second one), the two **DKIM** CNAMEs, and a **DMARC** record such as `_dmarc.lumovy.com` TXT `v=DMARC1; p=none; rua=mailto:hradmin@lumovy.com`. Check them with the Microsoft Remote Connectivity Analyzer or `mail-tester.com`.
 2. **Tell Microsoft 365 the sender is trusted** (needed for the first weeks, since new senders have no reputation). In the Exchange admin center > Mail flow > Rules > **Add a rule**: apply when the sender is `choice-awards@lumovy.com` (or the azurecomm.net address) and the message header `Auto-Submitted` is `auto-generated`; then **Set the spam confidence level (SCL) to -1**. Or add the sender under Defender > Policies & rules > Threat policies > **Tenant Allow/Block List**. Ask recipients to mark one email "Not junk" as well.
 
-The portal already marks every email as an automatic message and sends a plain-text copy beside the HTML one. You can set `MAIL_REPLY_TO` to a real mailbox (for example `hradmin@lumovy.com`) so replies go somewhere.
+The portal already marks every email as an automatic message and sends a plain-text copy beside the HTML one. You can set `MAIL_REPLY_TO` to a real mailbox (for example `hradmin@lumovy.com`) so replies go somewhere. If it is empty, replies land in the sending mailbox (for example `alerts@lumovy.com`), which nobody reads, so set it. Outlook shows a shared mailbox's own display name as the sender (for example "Alerts") for internal recipients, whatever `MAIL_FROM` says; to show "Lumovy Employee Choice Awards" create a shared mailbox with that display name and use it as `GRAPH_SENDER`.
 
 **Sending limits ("450 4.5.127 Excessive message rate").** Azure Communication Services limits how fast one sender can send: roughly **a few emails a minute on the free Azure managed domain**, and about **30 a minute and 100 an hour on a verified own domain** for new resources. Going over gets the SMTP error `450 4.5.127 Message rejected. Excessive message rate from sender`. The portal handles this itself:
 
@@ -194,6 +194,7 @@ To move to PostgreSQL later: provision with `DB=postgres` (or create the server 
 - **Email problems:** failed emails show in **Admin > Email outbox**. Several app instances are safe: emails are claimed atomically.
 - **Scaling:** scale **up** the plan (B1 → B2 → P1v3, one command or a few clicks, no redeploy) if uploads or voting feel slow; scaling **out** to 2+ instances is supported **only with PostgreSQL** (with SQLite keep exactly one instance, because one database file cannot be shared by several running copies). Raise PostgreSQL to General Purpose if you see database CPU pressure in the last hour of a big contest.
 - **Updates:** run the three-step manual deploy above. Run `npm test` locally first. Migrations run automatically on start. Avoid deploying in the last hour of a live contest (a restart takes seconds and loses no votes).
+- **Dev and prod on one plan:** a second web app on the same App Service plan and resource group is a separate environment (own `/home` storage, own SQLite database, own `APP_SECRET` and `APP_URL`). Create it with `provision.sh` (pass `SUB`, `RG`, `PLAN`, a new `APP` and `ADMIN_EMAIL`; an existing plan is reused), then copy the `GRAPH_*`, `MAIL_*` settings from the dev app with `az webapp config appsettings list` / `set` instead of typing the secret again. Deploy the same `deploy.zip` to each app with `deploy.sh`. Both apps share the plan's CPU and memory (scale to B2 if it feels slow) and the mailbox's sending limits. Keep each app on one instance.
 - **Staging:** create a second web app (or a deployment slot) with its own database for rehearsals; deploy to it with the same script.
 - **Secrets hygiene:** rotate the database password yearly, and renew the SMTP password (the Entra app client secret, valid 2 years) before it expires (see "SMTP secret expiry" above). Keep `APP_SECRET` as it is; changing it makes existing voter receipts unreadable (votes and results are unaffected).
 

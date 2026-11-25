@@ -56,7 +56,7 @@ function Shell() {
       <header className="topbar">
         <div className="topbar-in">
           <Link to={inAdmin ? '/admin' : '/'} className="tb-left" aria-label="Lumovy home"><Logo height={54} /></Link>
-          <Link to={inAdmin ? '/admin' : '/'} className="brand" aria-label="Lumovy Choice Awards home">
+          <Link to={inAdmin ? '/admin' : '/'} className="brand" aria-label="Lumovy Employee Choice Awards home">
             <span className="brand-badge" aria-hidden><Trophy size={22} strokeWidth={2} /></span>
             <span className="brand-text"><b>Lumovy Employee<br />Choice Awards</b></span>
           </Link>

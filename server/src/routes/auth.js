@@ -32,7 +32,7 @@ r.post('/otp/request', limiter, wrap(async (req, res) => {
       await db('otp_codes').where({ email: e, used: false }).update({ used: true });
       await db('otp_codes').insert({ email: e, code_hash: sha256(`${e}:${code}:${config.secret}`), expires_at: new Date(Date.now() + config.otpTtlMinutes * 60_000).toISOString(), created_at: nowIso() });
       await queue([{
-        kind: 'otp', to: user.email, toName: user.name, subject: `Your Lumovy sign-in code: ${code}`,
+        kind: 'otp', to: user.email, toName: user.name, subject: `Your Lumovy Employee Choice Awards sign-in code: ${code}`,
         text: `Your sign-in code is ${code}. It expires in ${config.otpTtlMinutes} minutes.`,
         html: `<div style="font-family:Poppins,Arial,sans-serif;padding:24px"><p>Hi ${user.name.replace(/[<>&]/g, '')},</p><p>Your Lumovy Employee Choice Awards sign-in code is</p><p style="font-size:32px;font-weight:700;letter-spacing:.3em;color:#2D31C4">${code}</p><p style="color:#6B6F99">It expires in ${config.otpTtlMinutes} minutes. If you did not ask for it, ignore this email.</p></div>`,
       }]);

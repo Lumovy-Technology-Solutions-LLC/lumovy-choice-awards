@@ -108,7 +108,7 @@ function fill(str, vars, asHtml) {
 export function renderEmail(tpl, vars) {
   // Mail arrives from a shared mailbox, so the subject says which system it is from.
   const plain = fill(tpl.subject, vars, false).replace(/\s+/g, ' ').trim();
-  const subject = /choice awards/i.test(plain) ? plain : `Lumovy Choice Awards: ${plain}`;
+  const subject = /lumovy employee choice awards/i.test(plain) ? plain : `Lumovy Employee Choice Awards: ${plain}`;
   const paras = tpl.body.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
   const inner = paras.map((p) => {
     const only = /^{{\s*(\w+)\s*}}$/.exec(p);
@@ -164,7 +164,7 @@ export const listBlock = (items) => ({
 
 // A sign-in code must never be readable by anyone but its owner (not even HR): it is wiped once the email is sent,
 // and hidden whenever the outbox is shown.
-export const OTP_REDACTED = { subject: 'Your Lumovy sign-in code', html: '<p style="font-family:Arial,sans-serif;padding:24px;color:#6B6F99">The sign-in code is hidden for security.</p>', text: 'The sign-in code is hidden for security.' };
+export const OTP_REDACTED = { subject: 'Your Lumovy Employee Choice Awards sign-in code', html: '<p style="font-family:Arial,sans-serif;padding:24px;color:#6B6F99">The sign-in code is hidden for security.</p>', text: 'The sign-in code is hidden for security.' };
 
 // ---------- queue ----------
 export async function queue(rows, trx = db) {
@@ -234,7 +234,7 @@ export async function sendViaGraph(m) {
     message: {
       subject: m.subject,
       body: { contentType: 'HTML', content: m.html },
-      // Shows "Lumovy Choice Awards" as the sender name even when the mailbox is shared with another system.
+      // Shows "Lumovy Employee Choice Awards" as the sender name even when the mailbox is shared with another system.
       ...(from.name ? { from: { emailAddress: { name: from.name, address: sender } } } : {}),
       toRecipients: [{ emailAddress: { address: m.to_email, ...(m.to_name ? { name: m.to_name.replace(/"/g, '') } : {}) } }],
       ...(config.mail.replyTo ? { replyTo: [{ emailAddress: { address: config.mail.replyTo } }] } : {}),
