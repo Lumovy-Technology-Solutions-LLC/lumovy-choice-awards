@@ -151,8 +151,7 @@ r.post('/contests/:id/banner', upload.single('file'), wrap(async (req, res) => {
 }));
 
 // HR can delete a contest at any stage. Anything that was voted on is removed with it (votes, who voted, saved picks, entries and files).
-r.delete('/contests/:id', wrap(async (req, res) => {
-  const c = await getContest(req.params.id);
+async function deleteContest(c, user) {
   const entries = await db('entries').where({ contest_id: c.id });
   const voters = Number((await db('voter_status').where({ contest_id: c.id }).count({ n: '*' }).first()).n);
   entries.forEach((e) => removeFiles(e.file_key, e.thumb_key, e.file_key && `${e.file_key}.html`));
@@ -164,9 +163,26 @@ r.delete('/contests/:id', wrap(async (req, res) => {
     await t('entries').where({ contest_id: c.id }).del();
     await t('email_templates').where({ contest_id: c.id }).del();
     await t('contests').where({ id: c.id }).del();
-    await audit(req.user, 'Contest deleted', null, { name: c.name, status: c.status, voters, entries: entries.length }, t);
+    await audit(user, 'Contest deleted', null, { name: c.name, status: c.status, voters, entries: entries.length }, t);
   });
+}
+
+r.delete('/contests/:id', wrap(async (req, res) => {
+  await deleteContest(await getContest(req.params.id), req.user);
   res.json({ ok: true });
+}));
+
+// Delete several contests at once (from the contests list).
+r.post('/contests/bulk-delete', wrap(async (req, res) => {
+  const { ids } = z.object({ ids: z.array(z.number().int()).min(1).max(200) }).parse(req.body);
+  let deleted = 0;
+  for (const id of new Set(ids)) {
+    const row = await db('contests').where({ id }).first();
+    if (!row) continue;
+    await deleteContest(hydrate(row), req.user);
+    deleted++;
+  }
+  res.json({ deleted });
 }));
 
 // ----- lifecycle -----
