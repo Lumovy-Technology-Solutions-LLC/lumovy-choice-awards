@@ -93,7 +93,7 @@ export default function ContestWorkspace() {
   const start = useMutation({ mutationFn: () => api.post<{ emailsQueued: number }>(`/api/admin/contests/${id}/start`), onSuccess: (r) => { refresh(); toast(`Voting is open. ${r.emailsQueued} emails are on their way.`); nav(`/admin/contests/${id}/live`); }, onError: onErr });
   const publish = useMutation({ mutationFn: () => api.post<{ emailsQueued: number }>(`/api/admin/contests/${id}/publish`), onSuccess: (r) => { refresh(); toast(`Results published. ${r.emailsQueued} emails are on their way.`); }, onError: onErr });
   const close = useMutation({ mutationFn: () => api.post(`/api/admin/contests/${id}/close`), onSuccess: () => { refresh(); toast('Voting is closed. Check the results, then publish.'); nav(`/admin/contests/${id}/results`); }, onError: onErr });
-  const del = useMutation({ mutationFn: () => api.del(`/api/admin/contests/${id}`), onSuccess: () => { refresh(); toast('Draft deleted.'); nav('/admin/contests'); }, onError: onErr });
+  const del = useMutation({ mutationFn: () => api.del(`/api/admin/contests/${id}`), onSuccess: () => { refresh(); toast('Contest deleted.'); nav('/admin/contests'); }, onError: onErr });
 
   if (q.isLoading) return <PageLoader />;
   if (q.isError) return <ErrorState error={q.error} retry={() => q.refetch()} />;
@@ -116,7 +116,13 @@ export default function ContestWorkspace() {
     if (ok) publish.mutate();
   }
   async function onDelete() {
-    if (await confirm({ title: 'Delete this draft?', danger: true, confirm: 'Delete draft', body: 'The contest and all of its uploaded entries will be removed. This cannot be undone.' })) del.mutate();
+    const started = c.status !== 'draft';
+    if (await confirm({
+      title: started ? `Delete “${c.name}”?` : 'Delete this draft?', danger: true, confirm: started ? 'Delete contest' : 'Delete draft',
+      body: started
+        ? `This permanently removes the contest, its entries, every vote and the voting history${c.status === 'published' ? ', including the published results' : ''}. Employees will no longer see it. This cannot be undone. If you only want to keep a record, do not delete it.`
+        : 'The contest and all of its uploaded entries will be removed. This cannot be undone.',
+    })) del.mutate();
   }
 
   const tabs = [
@@ -131,10 +137,10 @@ export default function ContestWorkspace() {
         <div className="admin-top">
           <div><div className="row" style={{ gap: 10 }}><h1>{c.name}</h1><StatusPill status={c.status} /></div><p className="hint" style={{ marginTop: 4 }}>{c.theme}</p>{c.status === 'live' && <div className="row" style={{ gap: 8, marginTop: 8 }}><span className="hint">Closes automatically in</span><Countdown compact endAt={c.endAt} onDone={refresh} /></div>}</div>
           <div className="row">
+            <button className="icon-btn" onClick={onDelete} disabled={del.isPending} aria-label="Delete contest" title="Delete contest"><Trash2 size={16} /></button>
             {c.status === 'draft' && <>
               <Link className="btn btn-ghost btn-sm" to={`/admin/contests/${id}/preview`}><Eye size={15} /> See it as an employee</Link>
               <button className="btn btn-accent" disabled={!r.ready || start.isPending} onClick={onStart} title={r.ready ? '' : 'Finish the checklist on the Overview tab first'}><Play size={15} /> Start contest</button>
-              <button className="icon-btn" onClick={onDelete} aria-label="Delete draft" title="Delete draft"><Trash2 size={16} /></button>
             </>}
             {c.status === 'live' && <>
               <Link className="btn btn-ghost btn-sm" to={`/admin/contests/${id}/preview`}><Eye size={15} /> Preview</Link>

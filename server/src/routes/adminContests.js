@@ -150,17 +150,21 @@ r.post('/contests/:id/banner', upload.single('file'), wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// HR can delete a contest at any stage. Anything that was voted on is removed with it (votes, who voted, saved picks, entries and files).
 r.delete('/contests/:id', wrap(async (req, res) => {
   const c = await getContest(req.params.id);
-  if (c.status !== 'draft') throw conflict('Only contests that have not started can be deleted. Finished contests are kept as history.');
   const entries = await db('entries').where({ contest_id: c.id });
+  const voters = Number((await db('voter_status').where({ contest_id: c.id }).count({ n: '*' }).first()).n);
   entries.forEach((e) => removeFiles(e.file_key, e.thumb_key, e.file_key && `${e.file_key}.html`));
   removeFiles(c.banner_file);
   await db.transaction(async (t) => {
+    await t('votes').where({ contest_id: c.id }).del();
+    await t('voter_status').where({ contest_id: c.id }).del();
+    await t('ballot_drafts').where({ contest_id: c.id }).del();
     await t('entries').where({ contest_id: c.id }).del();
     await t('email_templates').where({ contest_id: c.id }).del();
     await t('contests').where({ id: c.id }).del();
-    await audit(req.user, 'Draft contest deleted', null, { name: c.name }, t);
+    await audit(req.user, 'Contest deleted', null, { name: c.name, status: c.status, voters, entries: entries.length }, t);
   });
   res.json({ ok: true });
 }));
