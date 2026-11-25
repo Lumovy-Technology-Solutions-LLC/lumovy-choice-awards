@@ -198,6 +198,23 @@ To move to PostgreSQL later: provision with `DB=postgres` (or create the server 
 - **Staging:** create a second web app (or a deployment slot) with its own database for rehearsals; deploy to it with the same script.
 - **Secrets hygiene:** rotate the database password yearly, and renew the SMTP password (the Entra app client secret, valid 2 years) before it expires (see "SMTP secret expiry" above). Keep `APP_SECRET` as it is; changing it makes existing voter receipts unreadable (votes and results are unaffected).
 
+
+### Creating the prod app on the dev plan (Cloud Shell, PowerShell)
+
+One command creates prod on the existing plan and copies the Microsoft Graph settings from the dev app, so the client secret is never typed again (replace the subscription id, plan and e-mail with yours):
+
+```powershell
+$g=@{}; (az webapp config appsettings list -g rg-lumovy-choice-awards -n lumovy-choice-awards-dev -o json | ConvertFrom-Json) | ForEach-Object { $g[$_.name]=$_.value }; $env:SUB="<subscription id>"; $env:RG="rg-lumovy-choice-awards"; $env:APP="lumovy-choice-awards-prod"; $env:PLAN="plan-choice-awards-dev"; $env:ADMIN_EMAIL="<first HR admin email>"; $env:CUSTOM_URL="https://lumovy-choice-awards-prod.azurewebsites.net"; $env:GRAPH_TENANT_ID=$g['GRAPH_TENANT_ID']; $env:GRAPH_CLIENT_ID=$g['GRAPH_CLIENT_ID']; $env:GRAPH_CLIENT_SECRET=$g['GRAPH_CLIENT_SECRET']; $env:GRAPH_SENDER=$g['GRAPH_SENDER']; $env:MAIL_NAME="Lumovy Employee Choice Awards"; if ($g['MAIL_REPLY_TO']) { $env:MAIL_REPLY_TO=$g['MAIL_REPLY_TO'] }; bash infra/provision.sh
+```
+
+Then upload `deploy.zip` and deploy:
+
+```powershell
+$env:RG="rg-lumovy-choice-awards"; $env:APP="lumovy-choice-awards-prod"; bash infra/deploy.sh "$HOME/deploy.zip"
+```
+
+Save the printed `APP_SECRET` and temporary admin password, sign in, change the password and delete `BOOTSTRAP_ADMIN_PASSWORD` from the app settings. Use `https://lumovychoiceawards.com` as `CUSTOM_URL` once the custom domain is bound. If `MAIL_REPLY_TO` is not set on dev, it defaults to `ADMIN_EMAIL`.
+
 ## Security on Azure
 
 - HTTPS only, TLS 1.2+, FTPS disabled, managed certificate.
