@@ -35,7 +35,7 @@ Below the banner are four tiles:
 
 Further down:
 - **Upcoming contests**: contests that are coming soon, shown as plain information (not clickable).
-- **Past contests**: the **latest** finished contest, with the month and number of votes. Click it to see the top 3, and **your own vote** in it. Winners stay hidden until you click. To find earlier ones, use the **search box** (by name) or the **month list** (a month, or **All past contests**).
+- **Past contests**: the **latest 3** finished contests, with the month and number of votes. Click one to see the top 3, and **your own vote** in it. Winners stay hidden until you click. To find others, use the **search box** (by name) or the **period list**: This month, Last month, This quarter, Last quarter, or All.
 
 **Contests for other regions.** You can see every contest. If a contest is not open to your region you will see "Open to … · view only" and cannot vote in it. You can still read the results once published.
 

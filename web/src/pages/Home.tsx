@@ -10,7 +10,7 @@ import { Countdown, Empty, ErrorState, Medal, Modal, PageLoader, StatusPill } fr
 
 const CONFETTI: [number, number, string, number][] = [[8, 20, '#FF7A2F', 20], [22, 8, '#F5B83D', -30], [78, 12, '#5A5FF5', 40], [90, 30, '#FF7A2F', -15], [14, 52, '#18A874', 60], [86, 58, '#F5B83D', 10], [50, 4, '#fff', 25], [66, 24, '#FF7A2F', -50]];
 
-interface HomeData { serverTime: string; featured: Contest | null; alsoOpen: Contest[]; upcoming: Contest[]; past: { id: number; name: string; month: string; votes: number; status: string; statusLabel: string }[] }
+interface HomeData { serverTime: string; featured: Contest | null; alsoOpen: Contest[]; upcoming: Contest[]; past: { id: number; name: string; month: string; endedAt: string | null; votes: number; status: string; statusLabel: string }[] }
 
 const Step = ({ badge, title, children }: { badge: React.ReactNode; title: string; children: React.ReactNode }) => (
   <div className="review-item" style={{ padding: 14, alignItems: 'center', gap: 14 }}>{badge}<div><b>{title}</b><div className="hint" style={{ marginTop: 2 }}>{children}</div></div></div>
@@ -83,8 +83,8 @@ export default function Home() {
   const [rules, setRules] = useState(false);
   const [pastOpen, setPastOpen] = useState<{ id: number; name: string } | null>(null);
   const [idx, setIdx] = useState(0);
-  // Past contests: the latest one by default; the rest are found by month or by name.
-  const [pastMonth, setPastMonth] = useState('latest');
+  // Past contests: the latest 3 by default; others are found by period (month, quarter) or by name.
+  const [pastRange, setPastRange] = useState('latest');
   const [pastQ, setPastQ] = useState('');
   const [hover, setHover] = useState(false);
   const count = useRef(0);
@@ -219,23 +219,35 @@ export default function Home() {
       {h.past.length === 0 ? (
         <Empty icon={<History size={30} />} title="No past contests yet">Finished contests will be listed here.</Empty>
       ) : (() => {
-        const months = [...new Set(h.past.map((p) => p.month).filter(Boolean))]; // newest first, as the list is
         const term = pastQ.trim().toLowerCase();
-        const shown = h.past.filter((p) => (term ? p.name.toLowerCase().includes(term) : true)
-          && (pastMonth === 'all' || (pastMonth === 'latest' ? (term ? true : p.id === h.past[0].id) : p.month === pastMonth)));
+        const now = new Date();
+        const qStart = (d: Date) => new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1);
+        const ranges: Record<string, [Date, Date]> = {
+          month: [new Date(now.getFullYear(), now.getMonth(), 1), new Date(now.getFullYear(), now.getMonth() + 1, 1)],
+          lastMonth: [new Date(now.getFullYear(), now.getMonth() - 1, 1), new Date(now.getFullYear(), now.getMonth(), 1)],
+          quarter: [qStart(now), new Date(qStart(now).getFullYear(), qStart(now).getMonth() + 3, 1)],
+          lastQuarter: [new Date(qStart(now).getFullYear(), qStart(now).getMonth() - 3, 1), qStart(now)],
+        };
+        const inRange = (iso: string | null) => { const r = ranges[pastRange]; if (!r || !iso) return false; const t = new Date(iso).getTime(); return t >= r[0].getTime() && t < r[1].getTime(); };
+        // Newest first. By default only the latest 3 are shown; a search looks through all of them.
+        const shown = h.past.filter((p, i) => (term ? p.name.toLowerCase().includes(term) : true)
+          && (pastRange === 'all' || (pastRange === 'latest' ? (term ? true : i < 3) : inRange(p.endedAt))));
         return (
           <>
             {h.past.length > 1 && (
               <div className="toolbar" style={{ marginBottom: 10 }}>
                 <div className="search"><Search size={16} /><input className="input" placeholder="Search past contests" aria-label="Search past contests" value={pastQ} onChange={(e) => setPastQ(e.target.value)} /></div>
-                <select className="input" aria-label="Show past contests from" value={pastMonth} onChange={(e) => setPastMonth(e.target.value)}>
-                  <option value="latest">Latest contest</option>
-                  {months.map((m) => <option key={m} value={m}>{m}</option>)}
-                  <option value="all">All past contests ({h.past.length})</option>
+                <select className="input" aria-label="Show past contests from" value={pastRange} onChange={(e) => setPastRange(e.target.value)}>
+                  <option value="latest">Latest 3</option>
+                  <option value="month">This month</option>
+                  <option value="lastMonth">Last month</option>
+                  <option value="quarter">This quarter</option>
+                  <option value="lastQuarter">Last quarter</option>
+                  <option value="all">All ({h.past.length})</option>
                 </select>
               </div>
             )}
-            {shown.length === 0 ? <Empty icon={<History size={30} />} title="No past contests match">Try another month or search.</Empty> : (
+            {shown.length === 0 ? <Empty icon={<History size={30} />} title="No past contests match">Try another period or search.</Empty> : (
               <div className="past">
                 {shown.map((p, i) => (
                   <button key={p.id} className="past-card" onClick={() => setPastOpen({ id: p.id, name: p.name })} aria-label={`${p.name}, ${p.month}, ${p.votes} votes. Show winners`}>

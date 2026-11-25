@@ -39,7 +39,7 @@ r.get('/home', wrap(async (req, res) => {
   });
   const past = [];
   for (const c of done) {
-    past.push({ id: c.id, name: c.name, month: month(c.end_at || c.closed_at), votes: await voterCount(c.id), status: c.status, statusLabel: STATUS_LABEL[c.status] });
+    past.push({ id: c.id, name: c.name, month: month(c.end_at || c.closed_at), endedAt: c.end_at || c.closed_at || null, votes: await voterCount(c.id), status: c.status, statusLabel: STATUS_LABEL[c.status] });
   }
   res.json({
     serverTime: nowIso(),
