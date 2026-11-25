@@ -139,10 +139,9 @@ function layout(inner, preheader) {
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="max-width:600px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden">
 <tr><td align="center" bgcolor="#002756" style="background:#002756;padding:30px 28px 26px;color:#ffffff;text-align:center">
 ${logo}<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:4px auto 0"><tr>
-<td valign="middle" style="padding-right:14px"><img src="cid:${TROPHY_CID}" alt="" width="36" height="36" style="display:block;border:0"></td>
-<td valign="middle" align="center"><div style="font-size:24px;font-weight:700;letter-spacing:-.01em;color:#ffffff;line-height:1.2">Employee Choice Awards</div>
-<div style="font-size:14px;margin-top:6px;color:#BFD6F5">Vote for the work, not the person</div></td>
-<td valign="middle" style="padding-left:14px"><img src="cid:${TROPHY_CID}" alt="" width="36" height="36" style="display:block;border:0"></td>
+<td valign="middle" style="padding-right:16px"><img src="cid:${TROPHY_CID}" alt="" width="52" height="52" style="display:block;border:0"></td>
+<td valign="middle" align="center"><div style="font-size:24px;font-weight:700;letter-spacing:-.01em;color:#ffffff;line-height:1.2">Employee Choice Awards</div></td>
+<td valign="middle" style="padding-left:16px"><img src="cid:${TROPHY_CID}" alt="" width="52" height="52" style="display:block;border:0"></td>
 </tr></table>
 </td></tr>
 <tr><td bgcolor="#009CFD" style="background:#009CFD;height:4px;line-height:4px;font-size:0">&nbsp;</td></tr>

@@ -93,7 +93,6 @@ export default function Login() {
           </div>
           <div>
             <div className="eyebrow" style={{ color: 'rgba(255,255,255,.7)' }}>Employee Choice Awards</div>
-            <h2 style={{ fontSize: 24, fontWeight: 600, marginTop: 6 }}>Vote for the work, not the person.</h2>
             <p style={{ opacity: 0.8, marginTop: 6, fontSize: 14 }}>Every entry is anonymous. One vote each, counted once.</p>
           </div>
         </div>
