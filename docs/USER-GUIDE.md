@@ -162,7 +162,7 @@ For each one you can edit the **subject** and **message**, insert details with t
 
 **Email outbox** (side menu) lists every email with its status (queued, sent, failed; in test mode "captured"). Click a subject to see the message. **Sign-in codes are never shown**, not even to HR: those emails read "The sign-in code is hidden for security".
 
-Every email has the same look: a dark blue Lumovy banner with the logo and "Employee Choice Awards", a button, and a link to the portal. Subjects start with **Lumovy Employee Choice Awards:** so people recognise the sender. The logo is attached inside the email, so it also shows in new Outlook.
+Every email has the same look: a dark blue Lumovy banner with the logo, "Employee Choice Awards" and a gold trophy on each side, a button, and a link to the portal. Subjects start with **Lumovy Employee Choice Awards:** so people recognise the sender. The logo is attached inside the email, so it also shows in new Outlook.
 
 ## 8. Users and regions
 
