@@ -34,7 +34,7 @@ r.post('/otp/request', limiter, wrap(async (req, res) => {
       await queue([{
         kind: 'otp', to: user.email, toName: user.name, subject: `Your Lumovy sign-in code: ${code}`,
         text: `Your sign-in code is ${code}. It expires in ${config.otpTtlMinutes} minutes.`,
-        html: `<div style="font-family:Poppins,Arial,sans-serif;padding:24px"><p>Hi ${user.name.replace(/[<>&]/g, '')},</p><p>Your Lumovy Choice Awards sign-in code is</p><p style="font-size:32px;font-weight:700;letter-spacing:.3em;color:#2D31C4">${code}</p><p style="color:#6B6F99">It expires in ${config.otpTtlMinutes} minutes. If you did not ask for it, ignore this email.</p></div>`,
+        html: `<div style="font-family:Poppins,Arial,sans-serif;padding:24px"><p>Hi ${user.name.replace(/[<>&]/g, '')},</p><p>Your Lumovy Employee Choice Awards sign-in code is</p><p style="font-size:32px;font-weight:700;letter-spacing:.3em;color:#2D31C4">${code}</p><p style="color:#6B6F99">It expires in ${config.otpTtlMinutes} minutes. If you did not ask for it, ignore this email.</p></div>`,
       }]);
     }
   }
