@@ -1,3 +1,4 @@
+import { OTP_REDACTED } from '../lib/mail.js';
 import { Router } from 'express';
 import ExcelJS from 'exceljs';
 import { db, parseJson } from '../db/index.js';
@@ -122,7 +123,7 @@ r.get('/outbox', wrap(async (req, res) => {
   const { contest, status, kind, page = '1' } = req.query;
   const q = db('outbox').modify((qb) => { if (contest) qb.where({ contest_id: Number(contest) }); if (status) qb.where({ status }); if (kind) qb.where({ kind }); });
   const total = Number((await q.clone().count({ n: '*' }).first()).n);
-  const rows = await q.clone().orderBy('id', 'desc').limit(50).offset((Math.max(1, Number(page)) - 1) * 50).select('id', 'contest_id', 'kind', 'to_email', 'to_name', 'subject', 'status', 'attempts', 'error', 'created_at', 'sent_at');
+  const rows = (await q.clone().orderBy('id', 'desc').limit(50).offset((Math.max(1, Number(page)) - 1) * 50).select('id', 'contest_id', 'kind', 'to_email', 'to_name', 'subject', 'status', 'attempts', 'error', 'created_at', 'sent_at')).map((m) => (m.kind === 'otp' ? { ...m, subject: OTP_REDACTED.subject } : m));
   const stats = await db('outbox').select('status').count({ n: '*' }).groupBy('status');
   res.json({ total, items: rows, stats: Object.fromEntries(stats.map((s) => [s.status, Number(s.n)])), pace: { perMinute: config.mail.maxPerMinute, perHour: config.mail.maxPerHour } });
 }));
@@ -137,7 +138,7 @@ r.post('/outbox/retry-failed', wrap(async (req, res) => {
 r.get('/outbox/:id', wrap(async (req, res) => {
   const m = await db('outbox').where({ id: Number(req.params.id) }).first();
   if (!m) throw notFound();
-  res.json({ message: m });
+  res.json({ message: m.kind === 'otp' ? { ...m, ...OTP_REDACTED } : m });
 }));
 
 r.get('/overview', wrap(async (_req, res) => {

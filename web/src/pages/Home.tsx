@@ -2,7 +2,7 @@ import PageBackdrop from '../components/PageBackdrop';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, Lock, Clock, ListChecks, ScrollText, CalendarClock, CheckCircle2, ChevronRight, HelpCircle, Trophy, Vote as VoteIcon, Trophy as TrophyIcon, History } from 'lucide-react';
+import { ChevronLeft, Lock, Clock, ListChecks, ScrollText, CalendarClock, CheckCircle2, ChevronRight, HelpCircle, Trophy, Vote as VoteIcon, Trophy as TrophyIcon, History, Search } from 'lucide-react';
 import { api } from '../api';
 import type { Contest, Results } from '../types';
 import { useAuth, ordinal } from '../lib';
@@ -83,6 +83,9 @@ export default function Home() {
   const [rules, setRules] = useState(false);
   const [pastOpen, setPastOpen] = useState<{ id: number; name: string } | null>(null);
   const [idx, setIdx] = useState(0);
+  // Past contests: the latest one by default; the rest are found by month or by name.
+  const [pastMonth, setPastMonth] = useState('latest');
+  const [pastQ, setPastQ] = useState('');
   const [hover, setHover] = useState(false);
   const count = useRef(0);
   const modalOpen = how || rules || !!pastOpen;
@@ -99,7 +102,7 @@ export default function Home() {
   const homeData = home.data;
   useEffect(() => {
     if (!id || !homeData) return;
-    const list = [homeData.featured, ...homeData.alsoOpen].filter((x): x is Contest => !!x);
+    const list = [homeData.featured, ...homeData.alsoOpen, ...homeData.upcoming].filter((x): x is Contest => !!x);
     const i = list.findIndex((x) => String(x.id) === id);
     setIdx(i >= 0 ? i : 0);
   }, [id, homeData === undefined]);
@@ -112,7 +115,7 @@ export default function Home() {
   // Every contest running right now gets its own slide: open for voting first, then coming soon.
   // A contest page (/contests/:id) keeps the other open contests in the carousel, starting on the chosen one,
   // so going back from a ballot never hides the others. A contest that is not open (closed, published) comes first, with the open ones still after it.
-  const open = [h.featured, ...h.alsoOpen].filter((x): x is Contest => !!x);
+  const open = [h.featured, ...h.alsoOpen, ...h.upcoming].filter((x): x is Contest => !!x);
   const slides: Contest[] = id ? (open.some((x) => String(x.id) === id) ? open : [detail.data!.contest, ...open]) : open;
   count.current = slides.length;
   const c: Contest | null = slides[Math.min(idx, slides.length - 1)] ?? null;
@@ -203,11 +206,10 @@ export default function Home() {
           <div className="section-h"><h2>Upcoming contests</h2></div>
           <div className="past">
             {h.upcoming.map((x) => (
-              <Link key={x.id} to={`/contests/${x.id}`} className="past-card">
+              <div key={x.id} className="past-card past-card-static">
                 <div className="past-thumb" style={{ background: 'linear-gradient(135deg,var(--brand-2),var(--hero-b))' }}><CalendarClock size={22} /></div>
                 <div className="grow"><b>{x.name}</b><span>Coming soon · {x.regionLabel}{x.theme ? ` · ${x.theme}` : ''}</span></div>
-                <ChevronRight size={18} color="var(--muted)" />
-              </Link>
+              </div>
             ))}
           </div>
         </>
@@ -216,17 +218,37 @@ export default function Home() {
       <div className="section-h"><h2>Past contests</h2></div>
       {h.past.length === 0 ? (
         <Empty icon={<History size={30} />} title="No past contests yet">Finished contests will be listed here.</Empty>
-      ) : (
-        <div className="past">
-          {h.past.map((p, i) => (
-            <button key={p.id} className="past-card" onClick={() => setPastOpen({ id: p.id, name: p.name })} aria-label={`${p.name}, ${p.month}, ${p.votes} votes. Show winners`}>
-              <div className="past-thumb" style={{ background: ['linear-gradient(135deg,#FF7A2F,#FFB36B)', 'linear-gradient(135deg,#2D31C4,#5A5FF0)', 'linear-gradient(135deg,#18A874,#6FD6B0)'][i % 3] }}><TrophyIcon size={22} /></div>
-              <div className="grow"><b>{p.name}</b><span>{p.month} · {p.votes} {p.votes === 1 ? 'vote' : 'votes'}</span></div>
-              <span className="go">{p.status === 'published' ? 'See winners' : 'Results soon'}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      ) : (() => {
+        const months = [...new Set(h.past.map((p) => p.month).filter(Boolean))]; // newest first, as the list is
+        const term = pastQ.trim().toLowerCase();
+        const shown = h.past.filter((p) => (term ? p.name.toLowerCase().includes(term) : true)
+          && (pastMonth === 'all' || (pastMonth === 'latest' ? (term ? true : p.id === h.past[0].id) : p.month === pastMonth)));
+        return (
+          <>
+            {h.past.length > 1 && (
+              <div className="toolbar" style={{ marginBottom: 10 }}>
+                <div className="search"><Search size={16} /><input className="input" placeholder="Search past contests" aria-label="Search past contests" value={pastQ} onChange={(e) => setPastQ(e.target.value)} /></div>
+                <select className="input" aria-label="Show past contests from" value={pastMonth} onChange={(e) => setPastMonth(e.target.value)}>
+                  <option value="latest">Latest contest</option>
+                  {months.map((m) => <option key={m} value={m}>{m}</option>)}
+                  <option value="all">All past contests ({h.past.length})</option>
+                </select>
+              </div>
+            )}
+            {shown.length === 0 ? <Empty icon={<History size={30} />} title="No past contests match">Try another month or search.</Empty> : (
+              <div className="past">
+                {shown.map((p, i) => (
+                  <button key={p.id} className="past-card" onClick={() => setPastOpen({ id: p.id, name: p.name })} aria-label={`${p.name}, ${p.month}, ${p.votes} votes. Show winners`}>
+                    <div className="past-thumb" style={{ background: ['linear-gradient(135deg,#FF7A2F,#FFB36B)', 'linear-gradient(135deg,#2D31C4,#5A5FF0)', 'linear-gradient(135deg,#18A874,#6FD6B0)'][i % 3] }}><TrophyIcon size={22} /></div>
+                    <div className="grow"><b>{p.name}</b><span>{p.month} · {p.votes} {p.votes === 1 ? 'vote' : 'votes'}</span></div>
+                    <span className="go">{p.status === 'published' ? 'See winners' : 'Results soon'}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {rules && c && (
         <Modal title="Contest rules" onClose={() => setRules(false)} footer={<button className="btn btn-primary" onClick={() => setRules(false)}>Got it</button>}>

@@ -7,6 +7,8 @@ import type { Contest } from '../../types';
 import { errMsg, fmtDateTime, useToast } from '../../lib';
 import { Empty, ErrorState, PageLoader, StatusPill } from '../../components/ui';
 
+const STATUS_FILTERS: [string, string][] = [['', 'All'], ['draft', 'Draft'], ['live', 'Voting open'], ['closed', 'Voting closed'], ['published', 'Published']];
+
 export default function ContestList() {
   const qc = useQueryClient();
   const nav = useNavigate();
@@ -22,15 +24,19 @@ export default function ContestList() {
 
   if (list.isLoading) return <PageLoader />;
   if (list.isError) return <ErrorState error={list.error} retry={() => list.refetch()} />;
-  const rows = list.data!.contests.filter((c) => (!status || c.status === status) && (!q || `${c.name} ${c.theme}`.toLowerCase().includes(q.toLowerCase())));
+  const all = list.data!.contests;
+  const rows = all.filter((c) => (!status || c.status === status) && (!q || `${c.name} ${c.theme}`.toLowerCase().includes(q.toLowerCase())));
   return (
     <>
       <div className="admin-top"><div><div className="eyebrow">HR admin</div><h1>Contests</h1></div><Link to="/admin/contests/new" className="btn btn-primary"><Plus size={16} /> New contest</Link></div>
       <div className="toolbar">
         <div className="search"><Search size={16} /><input className="input" placeholder="Search contests" aria-label="Search contests" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-        <select className="input" aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="">All statuses</option><option value="draft">Draft</option><option value="live">Voting open</option><option value="closed">Voting closed</option><option value="published">Published</option>
-        </select>
+      </div>
+      <div className="chips" role="group" aria-label="Filter by status" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '4px 0 12px' }}>
+        {STATUS_FILTERS.map(([v, label]) => {
+          const n = v ? all.filter((c) => c.status === v).length : all.length;
+          return <button key={v} type="button" className={`chip ${status === v ? 'on' : ''}`} aria-pressed={status === v} onClick={() => setStatus(v)}>{label} <span className="num">{n}</span></button>;
+        })}
       </div>
       <div className="table-wrap" style={{ marginTop: 4 }}>
         <div className="contest-row contest-head"><span>Contest</span><span>Status</span><span>Entries</span><span>Voting ends</span><span className="right">Votes</span></div>

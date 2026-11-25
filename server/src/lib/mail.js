@@ -162,6 +162,10 @@ export const listBlock = (items) => ({
   text: items.map((i) => `${i.label}: ${i.title}${i.sub ? ` (${i.sub})` : ''}`).join('\n'),
 });
 
+// A sign-in code must never be readable by anyone but its owner (not even HR): it is wiped once the email is sent,
+// and hidden whenever the outbox is shown.
+export const OTP_REDACTED = { subject: 'Your Lumovy sign-in code', html: '<p style="font-family:Arial,sans-serif;padding:24px;color:#6B6F99">The sign-in code is hidden for security.</p>', text: 'The sign-in code is hidden for security.' };
+
 // ---------- queue ----------
 export async function queue(rows, trx = db) {
   // HR can switch email off in Settings: sign-in codes and notifications are separate switches. Skipped emails are not stored.
@@ -316,7 +320,7 @@ export async function processOutbox(limit = 25) {
           // Marks this as a system message so mail servers and out-of-office replies treat it as such.
           headers: { 'Auto-Submitted': 'auto-generated', 'X-Auto-Response-Suppress': 'All' },
         });
-        await db('outbox').where({ id: m.id }).update({ status: 'sent', sent_at: nowIso(), attempts: m.attempts + 1, error: null });
+        await db('outbox').where({ id: m.id }).update({ status: 'sent', sent_at: nowIso(), attempts: m.attempts + 1, error: null, ...(m.kind === 'otp' ? OTP_REDACTED : {}) });
         pauseMs = 0;
       } else {
         await db('outbox').where({ id: m.id }).update({ status: 'captured', sent_at: nowIso(), attempts: m.attempts + 1 });

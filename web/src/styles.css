@@ -368,3 +368,7 @@ textarea.input{resize:vertical;min-height:84px}
 }
 @media (max-width:480px){ .logo>div:last-child,.logo-div{display:none} .lg{height:22px} }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* upcoming contests are shown as plain information, not links */
+.past-card.past-card-static{cursor:default}
+.past-card.past-card-static:hover{transform:none;box-shadow:none}
