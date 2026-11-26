@@ -13,7 +13,7 @@
 
 - Server-side role check on every `/api/admin` route. Employees cannot reach admin APIs by guessing URLs.
 - Eligibility (active + participating region) is enforced on the entries, ballot, save and vote endpoints and on entry files, not only in the screens.
-- Entry files: HR any time; participating employees only while voting is open; anyone once results are published.
+- Entry files (including the extra photos of a multi-photo entry): HR any time; participating employees only while voting is open; anyone once results are published.
 
 ## Vote integrity and privacy
 
@@ -32,6 +32,7 @@
 
 - Allow-list of extensions per entry type, validated by content (images are decoded, PDFs and Word files are parsed), size limit 100 MB.
 - Metadata removal: images are re-encoded (EXIF, GPS, camera and author fields are dropped); PDFs have author, title, creator and XMP removed; Word files have creator, last editor, company and tracked-change authors blanked; videos are stripped when `ffmpeg` is installed.
+- Extra photos go through the same checks and metadata removal as a main photo, and only photo entries can have them (up to 10 photos per entry).
 - Files are stored under random names, served with `nosniff`, as `Entry NN.ext`, and only through authenticated endpoints.
 - Word documents are shown as converted HTML after a script/attribute sanitiser; PDFs are rendered to canvas.
 

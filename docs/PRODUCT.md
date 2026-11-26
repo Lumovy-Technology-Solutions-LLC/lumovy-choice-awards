@@ -69,10 +69,10 @@ Most points wins. Tie: more 1st-place picks wins; still tied: more 2nd-place pic
 
 | Type | Accepted | Viewer |
 | --- | --- | --- |
-| Photo or poster | JPG, PNG, WebP, GIF | Large image view with HR-written alt text |
+| Photo or poster | JPG, PNG, WebP, GIF | Near full-screen viewer with zoom (buttons, keys, wheel, double-click, pinch) and drag; up to 10 photos per entry (different angles of one subject) with thumbnails, Previous/Next and an optional auto-advance; HR-written alt text |
 | Writing | Text pasted by HR | Reading view |
-| Document | PDF, Word (.docx) | Built-in viewer with page count and zoom; labelled only "Entry NN.pdf" |
-| Video | MP4, WebM, MOV | Built-in player |
+| Document | PDF, Word (.docx) | Built-in viewer in the large window, with page count and zoom; labelled only "Entry NN.pdf" |
+| Video | MP4, WebM, MOV | Built-in player in the large window |
 
 One upload is one entry is one file. Hidden file details (author, camera, GPS, company) are removed on upload.
 

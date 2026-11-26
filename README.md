@@ -41,7 +41,7 @@ Tests: `npm test`.
 
 ## Highlights
 
-- **Employee portal:** email-code or password sign-in, contest home with a sliding banner of open and coming-soon contests and live countdown, latest 3 past contests with search and a period filter (month, quarter, all), anonymous voting with built-in viewers for images, PDF, Word, video and writing, save for later, review and submit, results with "Your vote", light/dark themes, mobile-first.
+- **Employee portal:** email-code or password sign-in, contest home with a sliding banner of open and coming-soon contests and live countdown, latest 3 past contests with search and a period filter (month, quarter, all), anonymous voting with a near full-screen viewer (zoom and pan for photos, several photos per entry, PDF, Word, video and writing), save for later, review and submit, results with "Your vote", light/dark themes, mobile-first.
 - **HR admin:** step-by-step contest setup, copy a contest, delete one or several contests, status filter on the contest list, entry upload, employee preview, Start contest with a readiness checklist, extend deadline, close early, live tracking and reminders, results review and publish, editable email templates, Excel import and export, activity log.
 - **Regions:** every user belongs to one region; contests are Regional, Selected regions or Global. Everyone can see every contest, only participating regions can vote. A contest can also be limited by gender (optional field on each employee).
 

@@ -120,4 +120,4 @@ Put it behind HTTPS (a reverse proxy or load balancer). `trust proxy` is enabled
 
 ## Testing
 
-`npm test` boots the real server on a throwaway database and drives it over HTTP. It checks: contests start only when ready, region visibility versus voting, names never reach voters, drafts, one vote per person including parallel submits, hard close, scoring and tie-breaks, publishing, email counts, the absence of any user link on votes, the audit trail, and metadata removal on photos, PDFs and Word files.
+`npm test` boots the real server on a throwaway database and drives it over HTTP. It checks: contests start only when ready, region visibility versus voting, names never reach voters, drafts, one vote per person including parallel submits, hard close, scoring and tie-breaks, publishing, email counts, the absence of any user link on votes, the audit trail, metadata removal on photos, PDFs and Word files, and several photos per entry with the per-person entry limit.
