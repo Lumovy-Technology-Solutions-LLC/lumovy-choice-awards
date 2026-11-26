@@ -212,7 +212,7 @@ p{margin:0}
 .mail-body{padding:18px;display:grid;gap:12px}
 
 /* results */
-.podium{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:16px;align-items:end;padding:28px;border-radius:var(--r-xl);background:radial-gradient(90% 120% at 50% 0%,var(--hero-glow),transparent 60%),linear-gradient(160deg,var(--hero-a),var(--hero-b));color:#fff;position:relative;overflow:hidden}
+.podium{display:grid;grid-template-columns:var(--cols,1fr 1.15fr 1fr);gap:16px;align-items:end;padding:28px;border-radius:var(--r-xl);background:radial-gradient(90% 120% at 50% 0%,var(--hero-glow),transparent 60%),linear-gradient(160deg,var(--hero-a),var(--hero-b));color:#fff;position:relative;overflow:hidden}
 .podium-h{grid-column:1/-1;text-align:center;margin-bottom:6px}
 .podium-h h2{font-size:24px;font-weight:600}
 .podium-h p{opacity:.75;font-size:13px}

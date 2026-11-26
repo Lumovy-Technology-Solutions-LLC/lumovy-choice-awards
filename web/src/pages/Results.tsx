@@ -9,13 +9,19 @@ import { useState } from 'react';
 import EntryViewer from '../components/EntryViewer';
 
 export function Podium({ winners, onOpen }: { winners: ResultEntry[]; onOpen: (e: ResultEntry) => void }) {
-  // Visual order: 2nd, 1st, 3rd. Ties share a place, so group by place and lay out the first 3 groups.
-  const byPlace = [1, 2, 3].map((p) => winners.filter((w) => w.place === p));
-  const cols: { w: ResultEntry; p: number }[] = [];
-  const order = [2, 1, 3];
-  for (const p of order) for (const w of byPlace[p - 1]) cols.push({ w, p });
+  // First place always sits in the centre (wider), the others on either side of it. Ties share a place,
+  // so there can be two 2nd places (one each side of the winner) or several joint winners side by side.
+  const at = (p: number) => winners.filter((w) => w.place === p);
+  const firsts = at(1);
+  const others = [...at(2), ...at(3)];
+  const left = others.slice(0, Math.ceil(others.length / 2));
+  const right = others.slice(left.length);
+  const cols: { w: ResultEntry; p: number }[] = [
+    ...left.map((w) => ({ w, p: w.place })), ...firsts.map((w) => ({ w, p: 1 })), ...right.map((w) => ({ w, p: w.place })),
+  ];
+  const template = [...left.map(() => '1fr'), ...firsts.map(() => '1.15fr'), ...right.map(() => '1fr')].join(' ');
   return (
-    <section className="podium" aria-label="Winners">
+    <section className="podium" aria-label="Winners" style={{ ['--cols' as string]: template }}>
       <div className="podium-h"><h2>The winners</h2><p>Congratulations to everyone who entered</p></div>
       {cols.map(({ w, p }) => (
         <button key={w.id} className={`pod ${p === 1 ? 'first' : ''}`} onClick={() => onOpen(w)} style={{ textAlign: 'inherit', color: 'inherit', cursor: 'pointer', padding: 0 }} aria-label={`${p === 1 ? 'First' : p === 2 ? 'Second' : 'Third'} place: ${w.competitorName}, ${w.label}, ${w.points} points`}>
