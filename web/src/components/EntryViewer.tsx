@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, FileText, Maximize2, Minimize2, Minus, Pause, Plus, Play, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, Image as ImageIcon, Maximize2, Minimize2, Minus, Pause, Plus, Play, X } from 'lucide-react';
 import { api } from '../api';
 import type { Entry } from '../types';
 import { Modal, PageLoader } from './ui';
@@ -220,23 +220,13 @@ export default function EntryViewer({ entry, onClose, footer }: { entry: Entry; 
   );
 }
 
-/** Card picture for a photo entry. With several photos it flips through them every 2 seconds (not for people who prefer reduced motion). */
+/** Card picture for a photo entry. It stays still (no flicker); a small badge says when the entry has more photos. */
 function PhotoTile({ entry }: { entry: Entry }) {
-  const shots = [{ src: entry.thumbUrl!, alt: entry.altText }, ...(entry.images ?? []).map((i) => ({ src: i.thumbUrl || i.url, alt: i.altText }))];
-  const n = shots.length;
-  const [i, setI] = useState(0);
-  useEffect(() => {
-    if (n < 2 || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-    let t: ReturnType<typeof setInterval> | undefined;
-    // start each card a little apart so the grid does not flip all at once
-    const start = setTimeout(() => { t = setInterval(() => setI((x) => (x + 1) % n), 2000); }, (entry.number % 5) * 300);
-    return () => { clearTimeout(start); if (t) clearInterval(t); };
-  }, [n, entry.number]);
-  const cur = shots[i] ?? shots[0];
+  const more = entry.images?.length ?? 0;
   return (
     <>
-      <img key={i} className={i ? 'fade-in' : undefined} src={cur.src} alt={cur.alt || `${entry.label}: ${entry.title}${n > 1 ? ` (photo ${i + 1} of ${n})` : ''}`} loading="lazy" />
-      {n > 1 && <span className="tile-dots" aria-hidden>{shots.map((_, k) => <i key={k} className={k === i ? 'on' : ''} />)}</span>}
+      <img src={entry.thumbUrl!} alt={entry.altText || `${entry.label}: ${entry.title}`} loading="lazy" />
+      {more > 0 && <span className="tile-count"><ImageIcon size={12} /> {more + 1} photos</span>}
     </>
   );
 }

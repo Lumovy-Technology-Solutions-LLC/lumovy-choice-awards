@@ -395,6 +395,4 @@ textarea.input{resize:vertical;min-height:84px}
 @keyframes photoIn{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){.fade-in{animation:none}}
 
-.tile-dots{position:absolute;left:0;right:0;bottom:8px;display:flex;gap:5px;justify-content:center;pointer-events:none}
-.tile-dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.5);box-shadow:0 0 2px rgba(0,0,0,.6)}
-.tile-dots i.on{background:#fff}
+.tile-count{position:absolute;right:8px;bottom:8px;display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 8px;border-radius:999px;background:rgba(10,12,38,.72);color:#fff;pointer-events:none}
