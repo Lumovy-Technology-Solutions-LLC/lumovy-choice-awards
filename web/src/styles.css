@@ -394,3 +394,7 @@ textarea.input{resize:vertical;min-height:84px}
 .fade-in{animation:photoIn .45s ease}
 @keyframes photoIn{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){.fade-in{animation:none}}
+
+.tile-dots{position:absolute;left:0;right:0;bottom:8px;display:flex;gap:5px;justify-content:center;pointer-events:none}
+.tile-dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.5);box-shadow:0 0 2px rgba(0,0,0,.6)}
+.tile-dots i.on{background:#fff}

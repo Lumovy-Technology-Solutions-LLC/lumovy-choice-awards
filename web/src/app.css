@@ -269,3 +269,41 @@ table.simple{min-width:0}
 .hero-track>.hero{flex:0 0 100%;min-width:0;box-shadow:none;border-radius:0;animation:none}
 .hero-viewport .carousel-ctl{z-index:5}
 @media (prefers-reduced-motion:reduce){.hero-track{transition:none}.pg-kind{transition:none}}
+
+/* full-screen entry viewer */
+.modal.xv-modal{width:min(1700px,98vw);height:min(95vh,1100px);max-height:none;overflow:hidden;display:block;border-radius:18px}
+.xv-modal .modal-b{padding:0;height:100%}
+.xv{display:grid;grid-template-columns:minmax(0,1fr) 320px;height:100%;min-height:0}
+.xv-main{min-width:0;min-height:0;display:flex;flex-direction:column;background:#0b0d22}
+.xv-side{overflow:auto;border-left:1px solid var(--line);background:var(--surface);position:relative}
+.xv-side .lightbox-side{padding:56px 22px 22px;min-height:100%}
+.xv-close{position:absolute;top:12px;right:12px;z-index:2}
+.xv-photo{flex:1;min-height:0;display:flex;flex-direction:column}
+.xv-stage-wrap{position:relative;flex:1;min-height:0}
+.xv-stage{position:absolute;inset:0;overflow:hidden;display:grid;place-items:center;touch-action:none;cursor:zoom-in;user-select:none}
+.xv-stage.zoomed{cursor:grab}
+.xv-stage.zoomed:active{cursor:grabbing}
+.xv-stage img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;transition:transform .12s ease-out;will-change:transform}
+.xv-zoom{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:4px;border-radius:999px;background:rgba(10,12,38,.78);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.14);color:#fff}
+.xv-zoom .icon-btn{width:34px;height:34px;color:#fff;background:transparent;border-color:transparent}
+.xv-zoom .icon-btn:disabled{opacity:.35}
+.xv-pct{min-width:56px;height:34px;border:0;background:transparent;color:#fff;font:inherit;font-size:13px;cursor:pointer;border-radius:999px}
+.xv-tip{position:absolute;top:12px;left:50%;transform:translateX(-50%);font-size:12px;padding:5px 12px;border-radius:999px;background:rgba(10,12,38,.7);color:#E7E9FF;pointer-events:none;opacity:.9}
+.xv-strip{flex:none;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 14px;background:#0b0d22;border-top:1px solid rgba(255,255,255,.1);color:#fff}
+.xv-strip .icon-btn{color:#fff;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.14);flex:none}
+.xv-strip .angles{flex:0 1 auto;flex-wrap:nowrap;overflow-x:auto;max-width:100%;padding:2px}
+.xv-strip .angle{flex:none;width:72px;height:54px}
+.xv-count{font-size:12px;opacity:.75;flex:none;min-width:40px;text-align:center}
+.xv-video{flex:1;min-height:0;display:grid;place-items:center;background:#000}
+.xv-video video{width:100%;height:100%;object-fit:contain;background:#000}
+.xv-reading{max-height:none;flex:1;min-height:0;font-size:18px}
+.xv-main .docv{flex:1;min-height:0}
+.xv-main .docv-scroll{height:auto;flex:1;min-height:0;padding:20px}
+.xv-main .doc-page{width:calc(760px * var(--z));font-size:calc(14px * var(--z));padding:calc(52px * var(--z)) calc(56px * var(--z))}
+@media (max-width:900px){
+  .modal.xv-modal{width:100vw;height:100dvh;max-height:none;border-radius:0}
+  .xv{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
+  .xv-side{max-height:38vh;border-left:0;border-top:1px solid var(--line)}
+  .xv-side .lightbox-side{padding:48px 16px 16px;min-height:0}
+  .xv-tip{display:none}
+}
