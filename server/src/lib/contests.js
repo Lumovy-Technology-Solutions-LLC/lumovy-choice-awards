@@ -83,6 +83,7 @@ export function contestShape(c, extra = {}) {
     bannerUrl: c.banner_file ? `/api/files/banners/${c.id}` : null,
     entryTypes: c.entry_types, regions: c.regions, isGlobal: c.is_global, scope: scopeOf(c), regionLabel: regionLabel(c), genders: c.genders ?? [], genderLabel: genderLabel(c), places: c.places,
     status: c.status, statusLabel: STATUS_LABEL[c.status], announced: c.announced,
+    maxEntriesPerPerson: c.max_entries_per_person ?? null,
     timezone: c.timezone, endAt: c.end_at, endLocal: utcIsoToLocal(c.end_at, c.timezone),
     deadlineLabel: formatDeadline(c.end_at, c.timezone),
     startedAt: c.started_at, closedAt: c.closed_at, publishedAt: c.published_at,
@@ -100,11 +101,20 @@ export function entryShape(e, { reveal = false, admin = false } = {}) {
     pageCount: e.page_count || null,
     fileName: e.file_key ? `${entryLabel(e.number)}${e.ext || ''}` : null,
     body: e.type === 'writing' ? e.body || '' : undefined,
+    // extra angles of the same photo (the first photo is url/thumbUrl above)
+    images: (e._images || []).map((i) => ({ id: i.id, url: `/api/files/entries/${e.id}/images/${i.id}`, thumbUrl: i.thumb_key ? `/api/files/entries/${e.id}/images/${i.id}?thumb=1` : null, altText: i.alt_text || '' })),
   };
   if (e.type === 'writing') base.excerpt = (e.body || '').replace(/\s+/g, ' ').slice(0, 220);
   if (reveal || admin) base.competitorName = e.competitor_name;
-  if (admin) { base.size = e.size; base.complete = isComplete(e); }
+  if (admin) { base.competitorUserId = e.competitor_user_id ?? null; base.size = e.size; base.complete = isComplete(e); }
   return base;
+}
+
+/** Attach each entry's extra photos (one query for the whole list) so entryShape can show them. */
+export async function withImages(rows) {
+  if (!rows.length) return rows;
+  const imgs = await db('entry_images').whereIn('entry_id', rows.map((r) => r.id)).orderBy(['entry_id', 'position', 'id']);
+  return rows.map((r) => ({ ...r, _images: imgs.filter((i) => i.entry_id === r.id) }));
 }
 
 export const isComplete = (e) =>

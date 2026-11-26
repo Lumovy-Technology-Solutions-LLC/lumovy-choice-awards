@@ -5,15 +5,16 @@ export type EntryType = 'image' | 'writing' | 'document' | 'video';
 
 export interface Contest {
   id: number; name: string; theme: string; description: string; rules: string; bannerUrl: string | null;
-  entryTypes: EntryType[]; regions: string[]; isGlobal: boolean; scope: 'regional' | 'selected' | 'global'; regionLabel: string; genders?: ('female' | 'male' | 'other')[]; genderLabel?: string; viewOnlyNote?: string; canVote?: boolean; places: number; status: Status; statusLabel: string; announced: boolean;
+  entryTypes: EntryType[]; regions: string[]; isGlobal: boolean; scope: 'regional' | 'selected' | 'global'; regionLabel: string; genders?: ('female' | 'male' | 'other')[]; genderLabel?: string; viewOnlyNote?: string; canVote?: boolean; places: number; maxEntriesPerPerson?: number | null; status: Status; statusLabel: string; announced: boolean;
   timezone: string; endAt: string | null; endLocal: string; deadlineLabel: string;
   startedAt: string | null; closedAt: string | null; publishedAt: string | null; copiedFrom: number | null; createdAt: string;
   entryCount?: number; voterCount?: number; hasVoted?: boolean; myStatus?: 'none' | 'draft' | 'submitted';
 }
+export interface EntryImage { id: number; url: string; thumbUrl: string | null; altText: string }
 export interface Entry {
   id: number; number: number; label: string; type: EntryType; title: string; description: string; altText: string;
   url: string | null; thumbUrl: string | null; pageCount: number | null; fileName: string | null;
-  body?: string; excerpt?: string; competitorName?: string; size?: number; complete?: boolean;
+  body?: string; excerpt?: string; competitorName?: string; competitorUserId?: number | null; images?: EntryImage[]; size?: number; complete?: boolean;
 }
 export interface ResultEntry extends Entry { points: number; firsts: number; seconds: number; thirds: number; place: number; shared: boolean }
 export interface Results { contest: Contest; totalVoters: number; winners: ResultEntry[]; others: ResultEntry[]; myVoted?: boolean; myPicks?: Pick[] }

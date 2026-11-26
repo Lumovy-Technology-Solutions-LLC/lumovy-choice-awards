@@ -57,7 +57,8 @@ One Node process serves the API and, in production, the built web app (`web/dist
 | `users` | Name, email, team, **region (required)**, optional gender, role, active, password hash, lockout fields |
 | `otp_codes` | Hashed one-time sign-in codes with expiry and attempt count |
 | `contests` | Name, theme, rules, entry types, regions, `is_global`, places, status, end time, banner |
-| `entries` | Entry number (permanent), type, title, description, alt text, stored file keys, **competitor name** |
+| `entries` | Entry number (permanent), type, title, description, alt text, stored file keys, **competitor name** and **competitor user id** (the employee picked on the entry) |
+| `entry_images` | Extra photos (angles) of one photo entry: file and thumbnail keys, order. The first photo stays on the entry itself. Removed with the entry |
 | `voter_status` | One row per (contest, user) who has voted. Holds **no entry information in the clear** and an encrypted receipt |
 | `votes` | (contest, entry, rank, points). **No user reference** |
 | `ballot_drafts` | Saved-for-later picks, deleted on submit and at close |

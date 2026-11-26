@@ -372,3 +372,25 @@ textarea.input{resize:vertical;min-height:84px}
 /* upcoming contests are shown as plain information, not links */
 .past-card.past-card-static{cursor:default}
 .past-card.past-card-static:hover{transform:none;box-shadow:none}
+
+/* several photos in one entry */
+.angles{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;flex:none}
+.angle{padding:0;border:2px solid transparent;border-radius:8px;background:none;cursor:pointer;overflow:hidden;width:64px;height:48px;opacity:.7}
+.angle img{width:100%;height:100%;object-fit:cover;display:block}
+.angle[aria-pressed="true"]{border-color:var(--brand);opacity:1}
+.angle:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.photo-strip{display:flex;gap:8px;flex-wrap:wrap}
+.photo-strip .ph{position:relative;width:84px;height:64px;border-radius:8px;overflow:hidden;border:1px solid var(--line, rgba(128,128,128,.35))}
+.photo-strip .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.photo-strip .ph button{position:absolute;top:2px;right:2px;width:22px;height:22px;border-radius:50%;border:0;background:rgba(0,0,0,.65);color:#fff;cursor:pointer;display:grid;place-items:center;padding:0}
+.photo-strip .ph .tag{position:absolute;left:3px;bottom:3px;font-size:10px;background:rgba(0,0,0,.65);color:#fff;border-radius:4px;padding:0 4px}
+.combo{position:relative}
+.combo-list{position:absolute;z-index:30;left:0;right:0;top:calc(100% + 4px);max-height:240px;overflow:auto;background:var(--surface, #fff);border:1px solid var(--line, rgba(128,128,128,.35));border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.25);padding:4px;margin:0;list-style:none}
+.combo-list li{padding:8px 10px;border-radius:8px;cursor:pointer;display:flex;flex-direction:column}
+.combo-list li small{opacity:.7}
+.combo-list li[aria-selected="true"]{background:var(--brand-soft)}
+.combo-list li[aria-disabled="true"]{opacity:.5;cursor:not-allowed}
+
+.fade-in{animation:photoIn .45s ease}
+@keyframes photoIn{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.fade-in{animation:none}}

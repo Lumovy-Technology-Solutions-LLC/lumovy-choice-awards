@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { FileText, Minus, Plus, Play } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, Minus, Pause, Plus, Play } from 'lucide-react';
 import { api } from '../api';
 import type { Entry } from '../types';
 import { Modal, PageLoader } from './ui';
@@ -71,8 +71,41 @@ function Details({ entry, footer }: { entry: Entry; footer?: React.ReactNode }) 
 /** Large view of an entry. Works for images, writing, PDF/Word documents and video. Shows no entrant details. */
 export default function EntryViewer({ entry, onClose, footer }: { entry: Entry; onClose: () => void; footer?: React.ReactNode }) {
   const isDoc = entry.type === 'document';
+  // photo entries can hold several angles of the same subject: the first is the entry's own file
+  const photos = entry.type === 'image' ? [{ url: entry.url!, thumbUrl: entry.thumbUrl, alt: entry.altText }, ...(entry.images ?? []).map((i) => ({ url: i.url, thumbUrl: i.thumbUrl, alt: i.altText }))] : [];
+  const [pi, setPi] = useState(0);
+  // Auto-advance like a carousel. It stops for people who prefer reduced motion, while the pointer is over the photo,
+  // and when the viewer presses Pause or picks a photo themselves.
+  const reduce = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const [playing, setPlaying] = useState(!reduce);
+  const [hover, setHover] = useState(false);
+  const n = photos.length;
+  useEffect(() => {
+    if (n < 2 || !playing || hover) return;
+    const t = setInterval(() => setPi((i) => (i + 1) % n), 4000);
+    return () => clearInterval(t);
+  }, [n, playing, hover, pi]);
+  const go = (i: number) => { setPi(((i % n) + n) % n); setPlaying(false); };
   let main: React.ReactNode;
-  if (entry.type === 'image') main = <div className="frame-main"><img src={entry.url!} alt={entry.altText || `${entry.label}: ${entry.title}`} /></div>;
+  if (entry.type === 'image') main = (
+    <div className="frame-main" style={photos.length > 1 ? { flexDirection: 'column', gap: 10 } : undefined} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} role={n > 1 ? 'group' : undefined} aria-roledescription={n > 1 ? 'carousel' : undefined} aria-label={n > 1 ? `Photos of ${entry.label}` : undefined}>
+      <img key={pi} className="fade-in" src={photos[pi]?.url ?? entry.url!} alt={photos[pi]?.alt || `${entry.label}: ${entry.title}${photos.length > 1 ? ` (photo ${pi + 1} of ${photos.length})` : ''}`} style={photos.length > 1 ? { minHeight: 0, flex: '1 1 auto' } : undefined} />
+      {photos.length > 1 && (
+        <div className="angles" style={{ alignItems: 'center' }}>
+          <button type="button" className="icon-btn" aria-label="Previous photo" onClick={() => go(pi - 1)}><ChevronLeft size={18} /></button>
+          <button type="button" className="icon-btn" aria-label={playing ? 'Pause slideshow' : 'Play slideshow'} onClick={() => setPlaying((v) => !v)}>{playing ? <Pause size={16} /> : <Play size={16} />}</button>
+          <button type="button" className="icon-btn" aria-label="Next photo" onClick={() => go(pi + 1)}><ChevronRight size={18} /></button>
+        </div>
+      )}
+      {photos.length > 1 && (
+        <div className="angles" role="group" aria-label="Photos of this entry">
+          {photos.map((p, i) => (
+            <button key={p.url} type="button" className="angle" aria-pressed={i === pi} aria-label={`Photo ${i + 1} of ${photos.length}`} onClick={() => go(i)}><img src={p.thumbUrl || p.url} alt="" /></button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
   else if (entry.type === 'video') main = <div className="frame-main"><video src={entry.url!} controls playsInline preload="metadata" aria-label={`${entry.label}: ${entry.title}`} /></div>;
   else if (entry.type === 'writing') main = (
     <div className="reading" tabIndex={0}>

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { db, nowIso, parseJson } from '../db/index.js';
 import { requireAuth } from '../lib/auth.js';
-import { getContest, publicContestShape as contestShape, entryShape, isEligible, participates, regionLabel, resultsPayload, hydrate, STATUS_LABEL } from '../lib/contests.js';
+import { getContest, publicContestShape as contestShape, entryShape, withImages, isEligible, participates, regionLabel, resultsPayload, hydrate, STATUS_LABEL } from '../lib/contests.js';
 import { voterCount, pointsFor } from '../lib/scoring.js';
 import { queueTemplated, listBlock } from '../lib/mail.js';
 import { wrap, bad, forbidden, notFound, conflict, entryLabel, encryptReceipt, decryptReceipt } from '../lib/util.js';
@@ -80,7 +80,7 @@ r.get('/contests/:id/entries', wrap(async (req, res) => {
   const c = await loadParticipant(req);
   if (c.status !== 'live') throw forbidden('Entries can only be seen while voting is open.', 'not_live');
   const entries = await db('entries').where({ contest_id: c.id }).orderBy('number');
-  res.json({ serverTime: nowIso(), contest: contestShape(c), entries: entries.map((e) => entryShape(e)) });
+  res.json({ serverTime: nowIso(), contest: contestShape(c), entries: (await withImages(entries)).map((e) => entryShape(e)) });
 }));
 
 async function myBallot(c, userId) {

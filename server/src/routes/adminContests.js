@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { db, nowIso, parseJson } from '../db/index.js';
 import { config } from '../config.js';
 import { audit } from '../lib/audit.js';
-import { getContest, closeContest, hydrate, contestShape, entryShape, isComplete, regionRecipients, resultsPayload, GENDERS } from '../lib/contests.js';
+import { getContest, closeContest, hydrate, contestShape, entryShape, withImages, isComplete, regionRecipients, resultsPayload, GENDERS } from '../lib/contests.js';
 import { processUpload, saveBanner, removeFiles, ENTRY_TYPES, typeForExt } from '../lib/files.js';
 import { getFlags } from '../lib/settings.js';
 import { backupNow } from '../lib/backup.js';
@@ -36,6 +36,7 @@ const contestBody = z.object({
   regions: z.array(z.string()).default([]),
   genders: z.array(z.enum(GENDERS)).default([]),
   timezone: z.enum(TZ).default('Asia/Kolkata'),
+  maxEntriesPerPerson: z.number().int().min(1, 'The limit must be at least 1.').max(100).nullable().optional(),
   announced: z.boolean().default(false),
   endLocal: z.string().optional().nullable(),
 });
@@ -55,7 +56,7 @@ r.post('/contests', wrap(async (req, res) => {
   const now = nowIso();
   const [id] = await db('contests').insert({
     name: b.name, theme: b.theme, description: b.description, rules: b.rules,
-    entry_types: JSON.stringify(b.entryTypes), regions: JSON.stringify(b.regions), genders: JSON.stringify([...new Set(b.genders)]), is_global: b.scope === 'global', places: PLACES,
+    entry_types: JSON.stringify(b.entryTypes), regions: JSON.stringify(b.regions), genders: JSON.stringify([...new Set(b.genders)]), is_global: b.scope === 'global', places: PLACES, max_entries_per_person: b.maxEntriesPerPerson ?? null,
     timezone: b.timezone, announced: b.announced, end_at: b.endLocal ? localToUtcIso(b.endLocal, b.timezone) : null,
     created_by: req.user.id, created_at: now, updated_at: now,
   }).returning('id').then((x) => x.map((v) => v.id ?? v));
@@ -79,7 +80,7 @@ r.post('/contests/:id/copy', wrap(async (req, res) => {
   const now = nowIso();
   const [row] = await db('contests').insert({
     name: `${src.name} (copy)`, theme: src.theme, description: src.description, rules: src.rules, banner_file: null,
-    entry_types: JSON.stringify(src.entry_types), regions: JSON.stringify(src.regions), genders: JSON.stringify(src.genders), is_global: src.is_global, places: PLACES,
+    entry_types: JSON.stringify(src.entry_types), regions: JSON.stringify(src.regions), genders: JSON.stringify(src.genders), is_global: src.is_global, places: PLACES, max_entries_per_person: src.max_entries_per_person ?? null,
     timezone: src.timezone, copied_from: src.id, created_by: req.user.id, created_at: now, updated_at: now,
   }).returning('id');
   const id = row.id ?? row;
@@ -130,7 +131,7 @@ r.put('/contests/:id', wrap(async (req, res) => {
   await assertRegions(b.regions);
   await db('contests').where({ id: c.id }).update({
     name: b.name, theme: b.theme, description: b.description, rules: b.rules,
-    entry_types: JSON.stringify(b.entryTypes), regions: JSON.stringify(b.regions), genders: JSON.stringify([...new Set(b.genders)]), is_global: b.scope === 'global', places: PLACES,
+    entry_types: JSON.stringify(b.entryTypes), regions: JSON.stringify(b.regions), genders: JSON.stringify([...new Set(b.genders)]), is_global: b.scope === 'global', places: PLACES, max_entries_per_person: b.maxEntriesPerPerson ?? null,
     timezone: b.timezone, announced: b.announced,
     end_at: b.endLocal ? localToUtcIso(b.endLocal, b.timezone) : null, updated_at: nowIso(),
   });
@@ -155,11 +156,13 @@ async function deleteContest(c, user) {
   const entries = await db('entries').where({ contest_id: c.id });
   const voters = Number((await db('voter_status').where({ contest_id: c.id }).count({ n: '*' }).first()).n);
   entries.forEach((e) => removeFiles(e.file_key, e.thumb_key, e.file_key && `${e.file_key}.html`));
+  (await db('entry_images').whereIn('entry_id', entries.map((e) => e.id))).forEach((i) => removeFiles(i.file_key, i.thumb_key));
   removeFiles(c.banner_file);
   await db.transaction(async (t) => {
     await t('votes').where({ contest_id: c.id }).del();
     await t('voter_status').where({ contest_id: c.id }).del();
     await t('ballot_drafts').where({ contest_id: c.id }).del();
+    await t('entry_images').whereIn('entry_id', entries.map((e) => e.id)).del();
     await t('entries').where({ contest_id: c.id }).del();
     await t('email_templates').where({ contest_id: c.id }).del();
     await t('contests').where({ id: c.id }).del();
@@ -253,13 +256,18 @@ r.post('/contests/:id/publish', wrap(async (req, res) => {
 }));
 
 // ----- entries -----
+const MAX_PHOTOS = 10; // photos (angles) in one entry
 const entryFields = z.object({
   title: z.string().trim().max(160).default(''),
   description: z.string().trim().max(1000).default(''),
   altText: z.string().trim().max(300).default(''),
   competitorName: z.string().trim().max(160).default(''),
+  competitorUserId: z.coerce.number().int().positive().optional(),
+  removeImages: z.string().optional(), // JSON list of extra-photo ids to delete
   body: z.string().max(60000).optional(),
 });
+const entryFiles = upload.fields([{ name: 'file', maxCount: 1 }, { name: 'extra', maxCount: MAX_PHOTOS - 1 }]);
+const filesOf = (req) => [...(req.files?.file || []), ...(req.files?.extra || [])];
 
 async function nextNumber(trx, contestId) {
   const c = await trx('contests').where({ id: contestId }).first('next_entry_no');
@@ -270,29 +278,57 @@ async function assertDraft(c) {
   if (c.status !== 'draft') throw conflict('Entries are locked because voting has started.', 'locked');
 }
 
+/** The person an entry is for, picked from the user list. Their name is copied onto the entry (hidden from voters) and the per-person limit is checked. */
+async function resolveCompetitor(c, f, exceptEntryId) {
+  if (!f.competitorUserId) return { competitor_name: f.competitorName, competitor_user_id: null };
+  const u = await db('users').where({ id: f.competitorUserId }).first();
+  if (!u) throw bad('Choose the competitor from the list of employees.');
+  const max = c.max_entries_per_person;
+  if (max) {
+    const q = db('entries').where({ contest_id: c.id, competitor_user_id: u.id });
+    if (exceptEntryId) q.whereNot({ id: exceptEntryId });
+    const have = Number((await q.count({ n: '*' }).first()).n);
+    if (have >= max) throw conflict(`${u.name} already has ${have} ${have === 1 ? 'entry' : 'entries'}. This contest allows at most ${max} per person.`, 'entry_limit');
+  }
+  return { competitor_name: u.name, competitor_user_id: u.id };
+}
+
 r.get('/contests/:id/entries', wrap(async (req, res) => {
   const c = await getContest(req.params.id);
-  const rows = await db('entries').where({ contest_id: c.id }).orderBy('number');
-  res.json({ locked: c.status !== 'draft', entries: rows.map((e) => entryShape(e, { admin: true })) });
+  const rows = await withImages(await db('entries').where({ contest_id: c.id }).orderBy('number'));
+  res.json({ locked: c.status !== 'draft', maxPerPerson: c.max_entries_per_person ?? null, entries: rows.map((e) => entryShape(e, { admin: true })) });
 }));
 
 // "See it as an employee sees it": same shape the voting page receives, with no names.
 r.get('/contests/:id/preview', wrap(async (req, res) => {
   const c = await getContest(req.params.id);
-  const rows = await db('entries').where({ contest_id: c.id }).orderBy('number');
+  const rows = await withImages(await db('entries').where({ contest_id: c.id }).orderBy('number'));
   res.json({ contest: contestShape(c), entries: rows.map((e) => entryShape(e)) });
 }));
 
-// One upload = one entry = one file (or pasted writing).
-r.post('/contests/:id/entries', upload.single('file'), wrap(async (req, res) => {
+/** Store one extra photo (an angle) for an entry; only photos are allowed. */
+async function storeExtra(c, file) {
+  const info = await processUpload({ tmpPath: file.path, originalName: file.originalname, contestId: c.id, allowedTypes: ['image'] });
+  return { file_key: info.file_key, thumb_key: info.thumb_key ?? null, mime: info.mime, ext: info.ext, size: info.size };
+}
+const dropKeys = (list) => list.forEach((i) => removeFiles(i.file_key, i.thumb_key));
+
+// One entry = one file (or pasted writing). Photo entries can carry more photos of the same subject ("extra").
+r.post('/contests/:id/entries', entryFiles, wrap(async (req, res) => {
+  const stored = []; let info;
   try {
     const c = await getContest(req.params.id);
     await assertDraft(c);
     const f = entryFields.parse(req.body);
-    let info;
-    if (req.file) {
-      info = await processUpload({ tmpPath: req.file.path, originalName: req.file.originalname, contestId: c.id, allowedTypes: c.entry_types });
+    const [primary] = req.files?.file || [];
+    const extras = req.files?.extra || [];
+    const who = await resolveCompetitor(c, f);
+    if (primary) {
+      info = await processUpload({ tmpPath: primary.path, originalName: primary.originalname, contestId: c.id, allowedTypes: c.entry_types });
+      if (extras.length && info.type !== 'image') throw bad('Only photo entries can have more than one photo.');
+      for (const x of extras) stored.push(await storeExtra(c, x));
     } else {
+      if (extras.length) throw bad('Add the main photo first.');
       if (!c.entry_types.includes('writing')) throw bad('This contest does not accept pasted writing.');
       if (!f.body?.trim()) throw bad('Add a file, or paste the writing.');
       info = { type: 'writing' };
@@ -306,35 +342,54 @@ r.post('/contests/:id/entries', upload.single('file'), wrap(async (req, res) => 
           contest_id: c.id, number, type: info.type, title: f.title, description: f.description, alt_text: f.altText,
           file_key: info.file_key ?? null, thumb_key: info.thumb_key ?? null, mime: info.mime ?? null, ext: info.ext ?? null,
           size: info.size ?? null, page_count: info.page_count ?? null, body: info.type === 'writing' ? f.body : null,
-          competitor_name: f.competitorName, created_at: now, updated_at: now,
+          ...who, created_at: now, updated_at: now,
         }).returning('id');
         id = row[0].id ?? row[0];
-        await audit(req.user, 'Entry added', c.id, { entry: entryLabel(number), type: info.type }, t);
+        for (const [position, s] of stored.entries()) await t('entry_images').insert({ entry_id: id, position: position + 1, ...s });
+        await audit(req.user, 'Entry added', c.id, { entry: entryLabel(number), type: info.type, photos: 1 + stored.length }, t);
       });
     } catch (e) { removeFiles(info.file_key, info.thumb_key, info.file_key && `${info.file_key}.html`); throw e; }
     res.status(201).json({ id });
-  } finally { cleanup(req.file); }
+  } catch (e) { dropKeys(stored); throw e; } finally { cleanup(filesOf(req)); }
 }));
 
-r.put('/entries/:entryId', upload.single('file'), wrap(async (req, res) => {
+r.put('/entries/:entryId', entryFiles, wrap(async (req, res) => {
+  const stored = [];
   try {
     const e = await db('entries').where({ id: Number(req.params.entryId) }).first();
     if (!e) throw notFound();
     const c = await getContest(e.contest_id);
     await assertDraft(c);
     const f = entryFields.parse(req.body);
-    const patch = { title: f.title, description: f.description, alt_text: f.altText, competitor_name: f.competitorName, updated_at: nowIso() };
+    const who = await resolveCompetitor(c, f, e.id);
+    const patch = { title: f.title, description: f.description, alt_text: f.altText, ...who, updated_at: nowIso() };
     if (e.type === 'writing' && f.body !== undefined) patch.body = f.body;
+    const [primary] = req.files?.file || [];
+    const extras = req.files?.extra || [];
     let info;
-    if (req.file) {
-      info = await processUpload({ tmpPath: req.file.path, originalName: req.file.originalname, contestId: c.id, allowedTypes: c.entry_types });
+    if (primary) {
+      info = await processUpload({ tmpPath: primary.path, originalName: primary.originalname, contestId: c.id, allowedTypes: c.entry_types });
       Object.assign(patch, { type: info.type, file_key: info.file_key, thumb_key: info.thumb_key ?? null, mime: info.mime, ext: info.ext, size: info.size, page_count: info.page_count ?? null, body: null });
     }
-    await db('entries').where({ id: e.id }).update(patch);
+    const finalType = info?.type ?? e.type;
+    const removeIds = (() => { try { return z.array(z.number().int()).parse(JSON.parse(f.removeImages || '[]')); } catch { return []; } })();
+    const existing = await db('entry_images').where({ entry_id: e.id }).orderBy('position').orderBy('id');
+    const gone = existing.filter((i) => removeIds.includes(i.id) || finalType !== 'image');
+    const kept = existing.filter((i) => !gone.includes(i));
+    if (extras.length && finalType !== 'image') throw bad('Only photo entries can have more than one photo.');
+    if (1 + kept.length + extras.length > MAX_PHOTOS) throw bad(`An entry can have up to ${MAX_PHOTOS} photos.`);
+    for (const x of extras) stored.push(await storeExtra(c, x));
+    await db.transaction(async (t) => {
+      await t('entries').where({ id: e.id }).update(patch);
+      if (gone.length) await t('entry_images').whereIn('id', gone.map((i) => i.id)).del();
+      const start = Math.max(0, ...kept.map((i) => i.position)) + 1;
+      for (const [n, s] of stored.entries()) await t('entry_images').insert({ entry_id: e.id, position: start + n, ...s });
+    });
     if (info) removeFiles(e.file_key, e.thumb_key, e.file_key && `${e.file_key}.html`);
-    await audit(req.user, 'Entry edited', c.id, { entry: entryLabel(e.number), fileReplaced: !!info });
+    dropKeys(gone);
+    await audit(req.user, 'Entry edited', c.id, { entry: entryLabel(e.number), fileReplaced: !!info, photosAdded: stored.length, photosRemoved: gone.length });
     res.json({ ok: true });
-  } finally { cleanup(req.file); }
+  } catch (err) { dropKeys(stored); throw err; } finally { cleanup(filesOf(req)); }
 }));
 
 r.delete('/entries/:entryId', wrap(async (req, res) => {
@@ -342,8 +397,11 @@ r.delete('/entries/:entryId', wrap(async (req, res) => {
   if (!e) throw notFound();
   const c = await getContest(e.contest_id);
   await assertDraft(c);
+  const imgs = await db('entry_images').where({ entry_id: e.id });
+  await db('entry_images').where({ entry_id: e.id }).del();
   await db('entries').where({ id: e.id }).del();
   removeFiles(e.file_key, e.thumb_key, e.file_key && `${e.file_key}.html`);
+  dropKeys(imgs);
   await audit(req.user, 'Entry removed', c.id, { entry: entryLabel(e.number) });
   res.json({ ok: true });
 }));

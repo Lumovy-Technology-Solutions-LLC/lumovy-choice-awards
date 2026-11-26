@@ -35,6 +35,17 @@ r.get('/entries/:id', wrap(async (req, res) => {
   res.sendFile(filePath(key)); // supports Range requests for video
 }));
 
+// Extra angles of a photo entry: same access rules as the entry itself.
+r.get('/entries/:id/images/:imageId', wrap(async (req, res) => {
+  await loadEntryForUser(req);
+  const img = await db('entry_images').where({ id: Number(req.params.imageId), entry_id: Number(req.params.id) }).first();
+  const key = img && (req.query.thumb ? img.thumb_key : img.file_key);
+  if (!key || !fs.existsSync(filePath(key))) throw notFound();
+  res.set(NO_LEAK);
+  res.type(req.query.thumb ? 'image/webp' : img.mime);
+  res.sendFile(filePath(key));
+}));
+
 // Word documents are shown in the built-in viewer as sanitised HTML converted at upload time.
 r.get('/entries/:id/html', wrap(async (req, res) => {
   const e = await loadEntryForUser(req);

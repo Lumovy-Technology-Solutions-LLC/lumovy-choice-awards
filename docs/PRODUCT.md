@@ -26,7 +26,7 @@ It replaces ad-hoc forms, spreadsheets and email threads with one place where a 
 ## Contest lifecycle
 
 ```
-Create -> Add entries -> Set schedule -> Voting (auto-closes) -> Check results -> Publish
+Create -> Add entries (up to a per-person limit HR sets, several photos per entry) -> Set schedule -> Voting (auto-closes) -> Check results -> Publish
   HR          HR              HR              employees               HR           HR
 ```
 

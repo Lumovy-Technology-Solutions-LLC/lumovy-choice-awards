@@ -94,6 +94,15 @@ r.get('/users', wrap(async (req, res) => {
   res.json({ total, page: Number(page), pageSize: ps, users: rows.map(shape), totals });
 }));
 
+// Type-ahead for pickers (e.g. the competitor on an entry): active people matching a name, email or team, best matches first.
+r.get('/users/lookup', wrap(async (req, res) => {
+  const q = String(req.query.q || '').trim().toLowerCase();
+  const rows = await db('users').where({ active: true }).modify((qb) => {
+    if (q) qb.where((w) => w.whereRaw('lower(name) like ?', [`%${q}%`]).orWhereRaw('lower(email) like ?', [`%${q}%`]).orWhereRaw('lower(team) like ?', [`%${q}%`]));
+  }).orderByRaw('case when lower(name) like ? then 0 else 1 end', [`${q}%`]).orderBy('name').limit(30);
+  res.json({ users: rows.map((u) => ({ id: u.id, name: u.name, email: u.email, team: u.team, region: u.region })) });
+}));
+
 const userBody = z.object({
   name: z.string().trim().min(2, 'Enter the employee’s name.').max(120),
   email: z.string().trim().refine(isEmail, 'Enter a valid work email.'),

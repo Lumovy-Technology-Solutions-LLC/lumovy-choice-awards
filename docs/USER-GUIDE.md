@@ -90,6 +90,7 @@ Shows how many contests are open, how many are waiting for you to publish, draft
    - **Entry types**: photo/poster, writing, document (PDF/Word), video. Choose more than one if you like.
    - **Who takes part**: **Regional** (one region), **Selected regions** (two or more), or **Global** (every region that is switched on). *Everyone can see the contest; only these regions can vote and get its emails.*
    - **Open to**: **Everyone** (default), or tick **Female**, **Male** and/or **Other** to open the contest only to people whose gender is set to one of those. People with no gender on file are left out of a limited contest (they can still see it). This is locked once voting starts. Gender and a contest's gender limit are visible to HR admins only: employees never see their own or anyone else's gender, and a limited contest just shows them "Not open to you".
+   - **Entries allowed per person**: the most entries one person can have in this contest (for example 2). Leave it empty for no limit. Once a person reaches it, HR cannot add another entry for them, and they are greyed out in the competitor list. It is set per contest, so each contest can have its own limit.
    - **Places to vote for**: always **Top 3** (fixed; 1st = 3 points, 2nd = 2, 3rd = 1).
 3. **Schedule**: **Voting ends** date and time, and the time zone (India time by default). Optionally switch on **Show as "Coming soon"** so employees see the name and theme before voting opens (entries stay hidden).
 
@@ -105,9 +106,9 @@ Press **Create contest**. You can change everything until you start it.
 
 Open the contest and go to **Entries**. Employees send their work to HR outside the portal; you upload it here.
 
-- **Add entry**: upload one file (or paste writing). Fill in:
+- **Add entry**: upload one file (or paste writing). A **photo entry can hold up to 10 photos** of the same subject taken from different angles: drop several photos at once (the first is the **Main** photo) or press **Add another photo of the same subject**. Remove a photo with its ✕. Voters see the main photo on the card and see all photos when they open the entry: they advance automatically every 4 seconds like a carousel (paused while the pointer is over the photo, and off for people who prefer reduced motion), with Previous, Next and Pause buttons and clickable thumbnails. Fill in:
   - **Title** and **Short description**. These are shown to voters. Do **not** name the entrant here.
-  - **Competitor's name**. Saved against the entry and **hidden from voters everywhere** until you publish.
+  - **Competitor**. Pick the person from the list of existing employees (type part of a name, email or team to search). Their name is saved against the entry and **hidden from voters everywhere** until you publish. If the contest has a per-person limit, people who have reached it show as full.
   - **Image description (alt text)** for photos, read aloud by screen readers.
 - **Edit** or **remove** an entry any time **before you start the contest**. After that, entries are locked.
 - Each entry gets a permanent number (Entry 01, 02, ...). A removed entry's number is not reused.
@@ -120,7 +121,7 @@ On the contest's **Overview**, the **Before you start** checklist shows what is 
 - name and description filled in;
 - enough entries (at least 3);
 - every entry has its file or text, a title and a description;
-- every entry has a competitor name;
+- every entry has a competitor;
 - the end date is set and in the future;
 - the region has eligible employees.
 

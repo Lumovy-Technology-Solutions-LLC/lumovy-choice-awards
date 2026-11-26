@@ -17,9 +17,9 @@ const TYPES: { key: EntryType; label: string; hint: string; icon: any }[] = [
 ];
 
 type Scope = 'regional' | 'selected' | 'global';
-interface FormState { scope: Scope; name: string; theme: string; description: string; rules: string; entryTypes: EntryType[]; regions: string[]; genders: string[]; places: number; timezone: string; announced: boolean; endLocal: string }
-const blank: FormState = { scope: 'regional', name: '', theme: '', description: '', rules: '', entryTypes: ['image'], regions: ['IN'], genders: [], places: 3, timezone: 'Asia/Kolkata', announced: false, endLocal: '' };
-const fromContest = (c: Contest): FormState => ({ scope: c.scope, name: c.name, theme: c.theme, description: c.description, rules: c.rules, entryTypes: c.entryTypes, regions: c.regions, genders: c.genders ?? [], places: c.places, timezone: c.timezone, announced: c.announced, endLocal: c.endLocal });
+interface FormState { scope: Scope; name: string; theme: string; description: string; rules: string; entryTypes: EntryType[]; regions: string[]; genders: string[]; places: number; maxEntries: string; timezone: string; announced: boolean; endLocal: string }
+const blank: FormState = { scope: 'regional', name: '', theme: '', description: '', rules: '', entryTypes: ['image'], regions: ['IN'], genders: [], places: 3, maxEntries: '', timezone: 'Asia/Kolkata', announced: false, endLocal: '' };
+const fromContest = (c: Contest): FormState => ({ scope: c.scope, name: c.name, theme: c.theme, description: c.description, rules: c.rules, entryTypes: c.entryTypes, regions: c.regions, genders: c.genders ?? [], places: c.places, maxEntries: c.maxEntriesPerPerson ? String(c.maxEntriesPerPerson) : '', timezone: c.timezone, announced: c.announced, endLocal: c.endLocal });
 
 function BannerPicker({ current, file, onFile, disabled }: { current?: string | null; file: File | null; onFile: (f: File | null) => void; disabled?: boolean }) {
   const ref = useRef<HTMLInputElement>(null);
@@ -57,6 +57,7 @@ export default function ContestForm({ contest, timezones }: { contest?: Contest;
     if (upTo >= 0 && f.name.trim().length < 2) e.name = 'Give the contest a name.';
     if (upTo >= 0 && !f.description.trim()) e.description = 'Add a short description so employees know what it is about.';
     if (upTo >= 1 && !f.entryTypes.length) e.entryTypes = 'Choose at least one entry type.';
+    if (upTo >= 1 && f.maxEntries.trim() && !(Number.isInteger(Number(f.maxEntries)) && Number(f.maxEntries) >= 1 && Number(f.maxEntries) <= 100)) e.maxEntries = 'Enter a whole number from 1 to 100, or leave it empty.';
     if (upTo >= 1 && f.scope !== 'global' && !f.regions.length) e.regions = 'Choose at least one region.';
     if (upTo >= 1 && f.scope === 'regional' && f.regions.length > 1) e.regions = 'A regional contest has one region. Use Selected regions for several.';
     if (upTo >= 2 && f.endLocal && new Date(f.endLocal) < new Date(Date.now() - 864e5)) e.endLocal = 'The end date is in the past.';
@@ -67,7 +68,7 @@ export default function ContestForm({ contest, timezones }: { contest?: Contest;
   const save = useMutation({
     mutationFn: async () => {
       let id = contest?.id;
-      const body = { ...f, endLocal: f.endLocal || null };
+      const body = { ...f, endLocal: f.endLocal || null, maxEntriesPerPerson: f.maxEntries.trim() ? Number(f.maxEntries) : null };
       if (edit) await api.put(`/api/admin/contests/${id}`, body);
       else id = (await api.post<{ id: number }>('/api/admin/contests', body)).id;
       if (banner) { const fd = new FormData(); fd.append('file', banner); await api.upload('POST', `/api/admin/contests/${id}/banner`, fd); }
@@ -106,6 +107,9 @@ export default function ContestForm({ contest, timezones }: { contest?: Contest;
             </button>
           ))}
         </div>
+      </Field>
+      <Field label="Entries allowed per person" error={errors.maxEntries} htmlFor="c-max" hint="The most entries one person can have in this contest. HR cannot add more for that person once they reach it. Leave empty for no limit. One entry can still hold several photos of the same subject.">
+        <input id="c-max" type="number" min={1} max={100} inputMode="numeric" className="input" style={{ maxWidth: 160 }} placeholder="No limit" value={f.maxEntries} disabled={locked} aria-invalid={!!errors.maxEntries} onChange={(e) => set('maxEntries', e.target.value)} />
       </Field>
       <Field label="Who takes part?" hint="Everyone at Lumovy can see the contest and its results. Only employees in the regions below can vote and get its emails.">
         <div className="type-grid" role="radiogroup" aria-label="Contest reach">
